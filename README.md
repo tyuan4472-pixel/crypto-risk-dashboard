@@ -117,7 +117,3 @@ docker compose up -d --build
 apt install certbot python3-certbot-nginx
 certbot --nginx -d yourdomain.com
 ```
-
-## License
-
-Internal tool — Donut Labs
