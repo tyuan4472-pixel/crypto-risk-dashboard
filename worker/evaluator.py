@@ -1,21 +1,10 @@
-"""评估执行器 — 数据获取 → 规则评分 → DB 持久化
-
-流程:
-  1. KuCoin API 获取币种列表 + 行情
-  2. (可选) CMC 获取市值/成交量
-  3. RiskEngine 规则打分 (8维度)
-  4. 结果写入 PostgreSQL
-  5. (Phase 2) AI 增强: 舆情分析, 深度报告
-"""
+"""评估执行器 — 数据获取 → 规则评分 → DB 持久化"""
 
 import asyncio
 import logging
 import sys
 import os
-from dataclasses import asdict
 
-# PYTHONPATH 已在 Dockerfile 中设置为 /app/backend
-# 本地开发时手动加入:
 backend_path = os.path.join(os.path.dirname(__file__), "..", "backend")
 if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
@@ -28,21 +17,15 @@ logger = logging.getLogger(__name__)
 
 
 class Evaluator:
-    """单个币种的完整评估流程"""
-
     def __init__(self):
         self.fetcher = DataFetcher()
         self.engine = RiskEngine()
 
     async def get_token_list(self) -> list[str]:
-        """从 KuCoin 获取需要评估的币种列表 (symbol names)"""
         symbols_info = await self.fetcher.get_token_list()
         return [s["symbol"] for s in symbols_info]
 
     async def evaluate_single(self, symbol: str) -> dict:
-        """
-        评估单个币种: 获取数据 → 规则打分 → 返回结果 dict。
-        """
         try:
             data = await self.fetcher.fetch_token_data(symbol)
             result = self.engine.evaluate(data)
@@ -52,14 +35,7 @@ class Evaluator:
             raise
 
     async def evaluate_batch(self, symbols: list[str]) -> list[dict]:
-        """
-        批量评估: 先批量拉数据, 再逐个打分。
-        优化: 共享 KuCoin ticker 数据, CMC 批量查询。
-        """
-        # 批量获取数据
         payloads = await self.fetcher.fetch_batch(symbols)
-
-        # 逐个评分
         results = []
         for payload in payloads:
             try:
@@ -68,39 +44,23 @@ class Evaluator:
             except Exception as e:
                 logger.error(f"评估 {payload.symbol} 失败: {e}")
                 continue
-
         return results
 
     def save_results(self, results: list[dict]) -> int:
-        """将评估结果批量写入 PostgreSQL"""
         if not results:
             return 0
         return bulk_insert_scores(results)
 
     async def generate_report(self, symbol: str, result: dict) -> str:
-        """
-        对高风险币种生成 AI 深度调研报告 (Phase 2)。
-        需要 OPENROUTER_API_KEY 或 DASHSCOPE_API_KEY。
-
-        ⚠️ 占位: 当前返回结构化文本摘要, AI 报告生成待 Key 接入后启用。
-        """
         risk_level = result.get("risk_level", "")
         if risk_level not in ("极高", "高"):
             return ""
 
-        # Phase 2: 替换为 AI 模型生成
-        # from app.services.model_router import model_router, TaskType
-        # prompt = f"""..."""
-        # model_result = await model_router.call(TaskType.DEEP_REPORT, prompt)
-        # return model_result.content
-
-        # 当前: 生成结构化摘要
         report = f"""# {symbol} 风险评估报告
 
 ## 基本信息
 - 总分: {result['total_score']}/100
 - 风险等级: {risk_level}
-- 评估时间: {result.get('evaluated_at', 'N/A')}
 
 ## 各维度得分
 - 市场流动性: {result.get('liquidity_score', 'N/A')}
@@ -114,27 +74,46 @@ class Evaluator:
 
 ## 风险明细
 """
-        for detail in result.get("risk_details", []):
-            report += f"- [{detail.get('severity', '')}] {detail.get('category', '')}: {detail.get('description', '')}\n"
+        rd = result.get("risk_details", [])
+        items = rd.get("items", rd) if isinstance(rd, dict) else rd
+        for detail in (items if isinstance(items, list) else []):
+            sev = detail.get('severity', '')
+            cat = detail.get('category', '')
+            desc = detail.get('description', '')
+            report += f"- [{sev}] {cat}: {desc}\n"
 
-        if not result.get("risk_details"):
-            report += "- 暂无具体风险明细\n"
+        zombie = result.get("risk_details", {}).get("zombie", {}) if isinstance(result.get("risk_details"), dict) else {}
+        if zombie:
+            report += f"\n## 🧟 僵尸币检测: {zombie.get('score', 0)}/7\n"
+            for flag in zombie.get("flags", []):
+                report += f"- {flag}\n"
 
-        report += "\n## 建议\n- 建议密切关注该币种后续动态\n- 如有链上合约地址，建议补充 GoPlus 安全扫描\n"
+        report += "\n## 建议\n- 密切关注该币种后续动态\n- 建议补充链上合约安全扫描\n"
 
-        # 存储报告
-        save_report(
-            symbol=symbol,
-            report_type="full",
-            title=f"{symbol} 风险评估报告",
-            content=report,
-            trigger_source="auto",
-        )
-
+        save_report(symbol=symbol, report_type="full", title=f"{symbol} 风险评估报告",
+                     content=report, trigger_source="auto")
         return report
 
     def _result_to_dict(self, result: RiskResult, data: TokenDataPayload) -> dict:
-        """将 RiskResult 转换为数据库写入格式"""
+        # 把所有扩展数据打包进 risk_details JSONB
+        risk_details_payload = {
+            "items": result.risk_details,
+            "indicators": result.indicators,
+            "zombie": {"score": result.zombie_score, "flags": result.zombie_flags},
+            "extra": {
+                "market_cap_rank": data.market_cap_rank,
+                "holder_count": data.holder_count,
+                "ath_pct": data.ath_pct,
+                "circulating_supply": data.circulating_supply,
+                "total_supply": data.total_supply,
+                "kucoin_deposit_enabled": data.kucoin_deposit_enabled,
+                "kucoin_withdraw_enabled": data.kucoin_withdraw_enabled,
+                "github_commits_30d": data.github_commits_30d,
+                "developer_score": data.developer_score,
+                "community_score": data.community_score,
+                "top10_holder_ratio": data.top10_holder_ratio,
+            },
+        }
         return {
             "symbol": result.symbol,
             "name": data.name or result.symbol,
@@ -151,6 +130,6 @@ class Evaluator:
             "market_cap_usd": data.market_cap_usd,
             "volume_24h_usd": data.volume_24h_usd,
             "price_usd": data.price_usd,
-            "risk_details": result.risk_details,
+            "risk_details": risk_details_payload,
             "sentiment_summary": result.sentiment_summary,
         }

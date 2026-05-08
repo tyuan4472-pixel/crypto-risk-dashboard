@@ -14,41 +14,68 @@ class RiskLevel(str, Enum):
     minimal = "极低"
 
 
-# ── 8 维度得分 ──
 class DimensionScores(BaseModel):
-    liquidity: float = 0       # 市场流动性
-    volatility: float = 0      # 价格波动性
-    concentration: float = 0   # 持仓集中度
-    fundamental: float = 0     # 项目基本面
-    sentiment: float = 0       # 舆情异常
-    compliance: float = 0      # 交易所合规
-    security: float = 0        # 智能合约安全
-    macro: float = 0           # 宏观关联风险
+    liquidity: float = 0
+    volatility: float = 0
+    concentration: float = 0
+    fundamental: float = 0
+    sentiment: float = 0
+    compliance: float = 0
+    security: float = 0
+    macro: float = 0
 
 
-# ── 12 项检查指标 ──
 class CheckIndicators(BaseModel):
-    volume_mcap_ratio: Optional[float] = None        # 24h成交量/市值比
-    liquidity_depth: Optional[float] = None           # ±2% 流动性深度
-    vol_7d_exceeded: bool = False                     # 7d 波动率超阈值
-    top10_holder_ratio: Optional[float] = None        # 前10地址持仓占比
-    github_commits_30d: Optional[int] = None          # GitHub 近30天 commit
-    team_verified: bool = False                       # 团队身份验证
-    negative_sentiment_pct: Optional[float] = None    # 负面情绪占比
-    mentions_anomaly_7d: bool = False                 # 近7d 异常提及
-    exchange_delist_warning: bool = False             # 交易所下架风险
-    contract_audited: bool = False                    # 合约审计状态
-    unlock_event_30d: bool = False                    # 30d 内代币解锁
-    btc_beta_anomaly: bool = False                    # BTC Beta 异常
+    volume_mcap_ratio: Optional[float] = None
+    market_cap_rank: Optional[int] = None
+    liquidity_depth: Optional[float] = None
+    vol_30d_exceeded: bool = False
+    top10_holder_ratio: Optional[float] = None
+    holder_count: Optional[int] = None
+    github_commits_30d: Optional[int] = None
+    developer_score: Optional[float] = None
+    community_score: Optional[float] = None
+    team_verified: bool = False
+    negative_sentiment_pct: Optional[float] = None
+    mentions_anomaly_7d: bool = False
+    exchange_delist_warning: bool = False
+    contract_audited: Optional[bool] = None
+    is_honeypot: bool = False
+    is_proxy: bool = False
+    unlock_event_30d: bool = False
+    btc_beta_anomaly: bool = False
+    kucoin_deposit_enabled: Optional[bool] = None
+    kucoin_withdraw_enabled: Optional[bool] = None
+    ath_pct: Optional[float] = None
+    circulating_supply: Optional[float] = None
+    total_supply: Optional[float] = None
 
 
-# ── 风险明细条目 ──
+class ZombieDetection(BaseModel):
+    score: int = 0
+    flags: list[str] = []
+
+
 class RiskDetail(BaseModel):
-    category: str          # 舆情异常 / 友商下架 / 合约漏洞 等
-    severity: str          # high / medium / low
+    category: str
+    severity: str
     description: str
-    source: str            # 来源链接
-    detected_at: datetime
+    source: str
+    detected_at: Optional[datetime] = None
+
+
+class ExtraData(BaseModel):
+    market_cap_rank: Optional[int] = None
+    holder_count: Optional[int] = None
+    ath_pct: Optional[float] = None
+    circulating_supply: Optional[float] = None
+    total_supply: Optional[float] = None
+    kucoin_deposit_enabled: Optional[bool] = None
+    kucoin_withdraw_enabled: Optional[bool] = None
+    github_commits_30d: Optional[int] = None
+    developer_score: Optional[float] = None
+    community_score: Optional[float] = None
+    top10_holder_ratio: Optional[float] = None
 
 
 # ── API 响应模型 ──
@@ -66,6 +93,7 @@ class TokenScoreBrief(BaseModel):
 class TokenScoreResponse(TokenScoreBrief):
     dimensions: DimensionScores
     indicators: CheckIndicators
+    zombie: ZombieDetection = ZombieDetection()
     risk_details: list[RiskDetail] = []
     sentiment_summary: Optional[str] = None
 
@@ -78,7 +106,8 @@ class TokenListResponse(BaseModel):
 
 
 class TokenDetailResponse(TokenScoreResponse):
-    history_30d: list[dict] = []   # 近 30 天评分趋势
+    extra: ExtraData = ExtraData()
+    history_30d: list[dict] = []
 
 
 class TriggerResponse(BaseModel):
@@ -90,4 +119,4 @@ class TriggerResponse(BaseModel):
 class ExportRequest(BaseModel):
     symbols: Optional[list[str]] = None
     risk_level: Optional[RiskLevel] = None
-    format: str = "csv"  # csv | pdf
+    format: str = "csv"

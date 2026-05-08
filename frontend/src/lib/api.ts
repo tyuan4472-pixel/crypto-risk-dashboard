@@ -23,18 +23,48 @@ export interface DimensionScores {
 }
 
 export interface CheckIndicators {
-  volume_mcap_ratio?: number;
-  liquidity_depth?: number;
-  vol_7d_exceeded?: boolean;
-  top10_holder_ratio?: number;
-  github_commits_30d?: number;
+  volume_mcap_ratio?: number | null;
+  market_cap_rank?: number | null;
+  liquidity_depth?: number | null;
+  vol_30d_exceeded?: boolean;
+  top10_holder_ratio?: number | null;
+  holder_count?: number | null;
+  github_commits_30d?: number | null;
+  developer_score?: number | null;
+  community_score?: number | null;
   team_verified?: boolean;
-  negative_sentiment_pct?: number;
+  negative_sentiment_pct?: number | null;
   mentions_anomaly_7d?: boolean;
   exchange_delist_warning?: boolean;
-  contract_audited?: boolean;
+  contract_audited?: boolean | null;
+  is_honeypot?: boolean;
+  is_proxy?: boolean;
   unlock_event_30d?: boolean;
   btc_beta_anomaly?: boolean;
+  kucoin_deposit_enabled?: boolean | null;
+  kucoin_withdraw_enabled?: boolean | null;
+  ath_pct?: number | null;
+  circulating_supply?: number | null;
+  total_supply?: number | null;
+}
+
+export interface ZombieDetection {
+  score: number;
+  flags: string[];
+}
+
+export interface ExtraData {
+  market_cap_rank?: number | null;
+  holder_count?: number | null;
+  ath_pct?: number | null;
+  circulating_supply?: number | null;
+  total_supply?: number | null;
+  kucoin_deposit_enabled?: boolean | null;
+  kucoin_withdraw_enabled?: boolean | null;
+  github_commits_30d?: number | null;
+  developer_score?: number | null;
+  community_score?: number | null;
+  top10_holder_ratio?: number | null;
 }
 
 export interface RiskDetail {
@@ -59,7 +89,9 @@ export interface TokenScore {
 export interface TokenDetail extends TokenScore {
   dimensions?: DimensionScores;
   indicators?: CheckIndicators;
+  zombie?: ZombieDetection;
   risk_details?: RiskDetail[];
+  extra?: ExtraData;
   sentiment_summary?: string;
   history_30d?: Array<{ date: string; total_score: number }>;
 }
