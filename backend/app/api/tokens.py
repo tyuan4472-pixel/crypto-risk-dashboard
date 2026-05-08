@@ -8,7 +8,7 @@ from app.database import get_db
 from app.models.schemas import (
     TokenListResponse, TokenScoreBrief, TokenDetailResponse,
     DimensionScores, CheckIndicators, RiskDetail, TriggerResponse,
-    RiskLevel, ZombieDetection, ExtraData,
+    RiskLevel, ZombieDetection, ExtraData, SentimentData,
 )
 from app.models import crud
 
@@ -45,9 +45,27 @@ async def list_tokens(
 
 
 def _parse_extra(rd: dict) -> ExtraData:
-    """从 risk_details JSONB 解析扩展数据"""
+    """从 risk_details JSONB 解析扩展数据 (含嵌套新字段)"""
     extra = rd.get("extra", {}) if isinstance(rd, dict) else {}
+
+    # 嵌套子字段
+    exchange_dist = extra.get("exchange_distribution") or {}
+    cross_val = extra.get("cross_validation") or {}
+    cr_data = extra.get("cryptorank_data") or {}
+    kc_mkt = extra.get("kucoin_market") or {}
+    sentiment_raw = extra.get("sentiment_analysis") or {}
+
+    sentiment = None
+    if sentiment_raw and any(sentiment_raw.get(k) is not None for k in ("positive_pct", "negative_pct", "summary")):
+        sentiment = SentimentData(
+            positive_pct=sentiment_raw.get("positive_pct"),
+            negative_pct=sentiment_raw.get("negative_pct"),
+            summary=sentiment_raw.get("summary"),
+            risks_found=sentiment_raw.get("risks_found", []),
+        )
+
     return ExtraData(
+        # 原有字段
         market_cap_rank=extra.get("market_cap_rank"),
         holder_count=extra.get("holder_count"),
         ath_pct=extra.get("ath_pct"),
@@ -59,6 +77,24 @@ def _parse_extra(rd: dict) -> ExtraData:
         developer_score=extra.get("developer_score"),
         community_score=extra.get("community_score"),
         top10_holder_ratio=extra.get("top10_holder_ratio"),
+        # 交易所分布
+        exchange_count=exchange_dist.get("exchange_count"),
+        cex_count=exchange_dist.get("cex_count"),
+        major_exchanges=exchange_dist.get("major_exchanges", []),
+        kucoin_volume_share=exchange_dist.get("kucoin_volume_share"),
+        # 交叉验证
+        cg_cmc_divergence_pct=cross_val.get("cg_cmc_divergence_pct"),
+        # CryptoRank
+        cryptorank_rank=cr_data.get("rank"),
+        fundraise_total_usd=cr_data.get("fundraise_total_usd"),
+        fundraise_rounds=cr_data.get("fundraise_rounds"),
+        top_vcs=cr_data.get("top_vcs", []),
+        # KuCoin 订单簿
+        kucoin_best_bid=kc_mkt.get("best_bid"),
+        kucoin_best_ask=kc_mkt.get("best_ask"),
+        kucoin_spread_pct=kc_mkt.get("spread_pct"),
+        # 情绪分析
+        sentiment=sentiment,
     )
 
 
