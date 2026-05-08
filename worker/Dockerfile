@@ -1,13 +1,16 @@
-# Worker Dockerfile — built from project root context
-# docker compose 中设置 build.context: . + build.dockerfile: worker/Dockerfile
-
 FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
-# 国内 apt 源加速
-RUN sed -i 's|mirrors.aliyun.com|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null; \
-    sed -i 's|mirrors.aliyun.com|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null; true
+# 代理 (build-arg 传入)
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ENV HTTP_PROXY=${HTTP_PROXY} \
+    HTTPS_PROXY=${HTTPS_PROXY}
+
+# apt 国内源 (Debian bookworm deb822 格式)
+RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources && \
+    sed -i 's|http://security.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources
 
 # 系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \

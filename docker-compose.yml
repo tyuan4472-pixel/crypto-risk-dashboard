@@ -17,7 +17,11 @@ services:
 
   # ── Next.js 前端 ──
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-http://host.docker.internal:7078}
+        HTTPS_PROXY: ${HTTPS_PROXY:-http://host.docker.internal:7078}
     container_name: risk-frontend
     expose:
       - "3000"
@@ -27,7 +31,11 @@ services:
 
   # ── FastAPI 后端 ──
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-http://host.docker.internal:7078}
+        HTTPS_PROXY: ${HTTPS_PROXY:-http://host.docker.internal:7078}
     container_name: risk-backend
     expose:
       - "8000"
@@ -45,6 +53,9 @@ services:
     build:
       context: .
       dockerfile: worker/Dockerfile
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-http://host.docker.internal:7078}
+        HTTPS_PROXY: ${HTTPS_PROXY:-http://host.docker.internal:7078}
     env_file:
       - .env
     depends_on:
@@ -61,6 +72,9 @@ services:
     build:
       context: .
       dockerfile: worker/Dockerfile
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-http://host.docker.internal:7078}
+        HTTPS_PROXY: ${HTTPS_PROXY:-http://host.docker.internal:7078}
     container_name: risk-beat
     command: celery -A tasks beat --loglevel=info
     env_file:
