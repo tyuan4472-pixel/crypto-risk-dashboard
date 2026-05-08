@@ -64,6 +64,13 @@ class RiskDetail(BaseModel):
     detected_at: Optional[datetime] = None
 
 
+class SentimentData(BaseModel):
+    positive_pct: Optional[float] = None
+    negative_pct: Optional[float] = None
+    summary: Optional[str] = None
+    risks_found: list[str] = []
+
+
 class ExtraData(BaseModel):
     market_cap_rank: Optional[int] = None
     holder_count: Optional[int] = None
@@ -76,6 +83,24 @@ class ExtraData(BaseModel):
     developer_score: Optional[float] = None
     community_score: Optional[float] = None
     top10_holder_ratio: Optional[float] = None
+    # Exchange distribution
+    exchange_count: Optional[int] = None
+    cex_count: Optional[int] = None
+    major_exchanges: list[str] = []
+    kucoin_volume_share: Optional[float] = None
+    # Cross-validation (CG vs CMC)
+    cg_cmc_divergence_pct: Optional[float] = None
+    # CryptoRank fundraising
+    cryptorank_rank: Optional[int] = None
+    fundraise_total_usd: Optional[float] = None
+    fundraise_rounds: Optional[int] = None
+    top_vcs: list[str] = []
+    # KuCoin orderbook
+    kucoin_best_bid: Optional[float] = None
+    kucoin_best_ask: Optional[float] = None
+    kucoin_spread_pct: Optional[float] = None
+    # Sentiment analysis
+    sentiment: Optional[SentimentData] = None
 
 
 # ── API 响应模型 ──
