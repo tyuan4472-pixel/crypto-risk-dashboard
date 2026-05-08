@@ -101,6 +101,7 @@ class Evaluator:
             "indicators": result.indicators,
             "zombie": {"score": result.zombie_score, "flags": result.zombie_flags},
             "extra": {
+                # 原有字段
                 "market_cap_rank": data.market_cap_rank,
                 "holder_count": data.holder_count,
                 "ath_pct": data.ath_pct,
@@ -112,6 +113,32 @@ class Evaluator:
                 "developer_score": data.developer_score,
                 "community_score": data.community_score,
                 "top10_holder_ratio": data.top10_holder_ratio,
+                # 交叉验证 (CG vs CMC)
+                "cross_validation": {
+                    "cg_cmc_divergence_pct": data.cg_cmc_divergence_pct,
+                },
+                # 交易所分布
+                "exchange_distribution": {
+                    "exchange_count": data.exchange_count,
+                    "cex_count": data.cex_count,
+                    "major_exchanges": data.major_exchanges,
+                    "kucoin_volume_share": data.kucoin_volume_share,
+                },
+                # KuCoin 订单簿
+                "kucoin_market": {
+                    "best_bid": data.kucoin_best_bid,
+                    "best_ask": data.kucoin_best_ask,
+                    "spread_pct": data.kucoin_spread_pct,
+                },
+                # CryptoRank 融资数据
+                "cryptorank_data": {
+                    "rank": data.cryptorank_rank,
+                    "fundraise_rounds": data.fundraise_rounds,
+                    "fundraise_total_usd": data.fundraise_total_usd,
+                    "top_vcs": data.top_vcs,
+                },
+                # 情绪分析 (由 model_router 在运行时填充)
+                "sentiment_analysis": {},
             },
         }
         return {
