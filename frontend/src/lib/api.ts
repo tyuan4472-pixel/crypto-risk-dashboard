@@ -11,6 +11,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 // ═══════════════════════════════════════════
 
 export interface DimensionScores {
+  [key: string]: number;
   liquidity: number;
   volatility: number;
   concentration: number;
