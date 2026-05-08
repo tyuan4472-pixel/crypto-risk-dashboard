@@ -72,8 +72,8 @@ class ScanLog(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     batch_id = Column(String(36), nullable=False)
     total_tokens = Column(Integer, nullable=False)
-    completed = Column(Integer, nullable=False, default=0)
-    failed = Column(Integer, nullable=False, default=0)
+    completed = Column(Integer, nullable=False, server_default=text("0"))
+    failed = Column(Integer, nullable=False, server_default=text("0"))
     status = Column(String(20), nullable=False, default="running")  # running | completed | failed
     started_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     finished_at = Column(DateTime(timezone=True))
