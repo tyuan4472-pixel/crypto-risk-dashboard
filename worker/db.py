@@ -1,4 +1,4 @@
-"""Worker 数据库操作 (同步, 基于 psycopg2)
+"""Worker 数据库操作 (同步, 基于 psycopg 3.x)
 
 Worker 是 Celery 进程, 使用同步 DB 连接 (非 async)。
 """
@@ -9,8 +9,8 @@ from datetime import datetime, timezone
 from typing import Optional
 from contextlib import contextmanager
 
-import psycopg2
-from psycopg2.extras import RealDictCursor, execute_values
+import psycopg
+from psycopg.rows import dict_row
 
 from config import config
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 @contextmanager
 def get_connection():
     """获取 PostgreSQL 连接 (with 语句自动关闭)"""
-    conn = psycopg2.connect(config.database_url)
+    conn = psycopg.connect(config.database_url)
     try:
         yield conn
         conn.commit()
@@ -48,6 +48,9 @@ def bulk_insert_scores(records: list[dict]) -> int:
         "risk_details", "sentiment_summary", "evaluated_at",
     ]
 
+    placeholders = ', '.join(['%s'] * len(columns))
+    sql = f"INSERT INTO token_scores ({', '.join(columns)}) VALUES ({placeholders})"
+
     values = []
     for r in records:
         values.append((
@@ -71,14 +74,9 @@ def bulk_insert_scores(records: list[dict]) -> int:
             datetime.now(timezone.utc),
         ))
 
-    sql = f"""
-        INSERT INTO token_scores ({', '.join(columns)})
-        VALUES %s
-    """
-
     with get_connection() as conn:
         with conn.cursor() as cur:
-            execute_values(cur, sql, values)
+            cur.executemany(sql, values)
             inserted = cur.rowcount
 
     logger.info(f"DB: inserted {inserted} token scores")
