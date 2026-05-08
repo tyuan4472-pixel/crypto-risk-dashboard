@@ -19,7 +19,7 @@ load_dotenv()
 
 async def test_coinchecko():
     """测试 CoinGecko API Key"""
-    key = os.getenv("COINGECKO_API_KEY", "")
+    key = os.getenv("COINGECKO_API_KEY") or os.getenv("coingecko_api_key", "")
     if not key:
         return "❌ COINGECKO_API_KEY 未设置"
 
@@ -68,7 +68,7 @@ async def test_goplus():
 
 async def test_openrouter():
     """测试 OpenRouter (Claude) API Key"""
-    key = os.getenv("OPENROUTER_API_KEY", "")
+    key = os.getenv("OPENROUTER_API_KEY") or os.getenv("openrouter_api_key", "")
     if not key:
         return "❌ OPENROUTER_API_KEY 未设置"
 
@@ -98,7 +98,7 @@ async def test_openrouter():
 
 async def test_dashscope():
     """测试 DashScope (千问) API Key"""
-    key = os.getenv("DASHSCOPE_API_KEY", "")
+    key = os.getenv("DASHSCOPE_API_KEY") or os.getenv("dashscope_api_key", "")
     if not key:
         return "❌ DASHSCOPE_API_KEY 未设置"
 
