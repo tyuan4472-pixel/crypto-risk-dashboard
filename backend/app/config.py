@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     # 外部 API
     cmc_api_key: str = ""
     coingecko_api_key: str = ""
+    goplus_api_key: str = ""
     kucoin_api_key: str = ""
     kucoin_api_secret: str = ""
     kucoin_api_passphrase: str = ""
