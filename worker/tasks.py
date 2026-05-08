@@ -5,6 +5,7 @@
   2. evaluate_single: 手动触发单币种评估
 """
 
+import os
 import asyncio
 import hashlib
 import logging
@@ -79,6 +80,9 @@ def run_daily_scan(self):
 
     # 2. 分批评估
     batch_size = config.BATCH_SIZE
+    max_scan = int(os.getenv("MAX_SCAN_TOKENS", str(len(tokens))))
+    tokens = tokens[:max_scan]
+    total = len(tokens)
     batches = [tokens[i:i + batch_size] for i in range(0, total, batch_size)]
 
     completed = 0
