@@ -1,5 +1,4 @@
-# 国内构建用阿里云镜像，海外部署改回 python:3.12-slim
-FROM registry.cn-hangzhou.aliyuncs.com/library/python:3.12-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
