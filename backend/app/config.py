@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     kucoin_api_secret: str = ""
     kucoin_api_passphrase: str = ""
     x_bearer_token: str = ""
+    cryptorank_api_key: str = ""
 
     # AI 模型
     anthropic_api_key: str = ""
