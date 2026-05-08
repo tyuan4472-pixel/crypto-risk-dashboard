@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS token_reports (
     trigger_source VARCHAR(20) DEFAULT 'scheduled'  -- scheduled | manual
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_token_reports_unique ON token_reports(symbol, report_type, (generated_at::date));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_token_reports_unique ON token_reports(symbol, report_type);
 
 CREATE INDEX IF NOT EXISTS idx_token_reports_symbol ON token_reports(symbol);
 CREATE INDEX IF NOT EXISTS idx_token_reports_generated ON token_reports(generated_at DESC);
