@@ -88,8 +88,8 @@ def create_scan_log(batch_id: str, total_tokens: int) -> None:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO scan_logs (batch_id, total_tokens, status, completed, failed) VALUES (%s, %s, %s, %s, %s)",
-                (batch_id, total_tokens, "running", 0, 0),
+                "INSERT INTO scan_logs (batch_id, total_tokens, status, completed, failed, started_at) VALUES (%s, %s, %s, %s, %s, %s)",
+                (batch_id, total_tokens, "running", 0, 0, datetime.now(timezone.utc)),
             )
 
 
