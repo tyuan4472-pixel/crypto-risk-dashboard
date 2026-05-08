@@ -15,6 +15,8 @@ import asyncio
 import httpx
 from dotenv import load_dotenv
 load_dotenv()
+# Also try parent directory for root-level .env
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 
 async def test_coinchecko():
