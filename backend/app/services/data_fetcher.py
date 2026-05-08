@@ -1,10 +1,11 @@
 """数据源适配层 — 多源聚合数据获取
 
 数据源:
-  1. KuCoin (公开 API) — 币种列表 + 基础行情
-  2. CoinGecko (需 Key) — 市值/流通量/开发者/社区数据
+  1. KuCoin (公开 API) — 币种列表 + 基础行情 + 订单簿
+  2. CoinGecko (需 Key) — 市值/流通量/开发者/社区/交易所分布
   3. GoPlus (免费, 可选 Key) — 合约安全检测
-  4. CMC (需 Key) — 市值/交易量 (备选)
+  4. CMC (需 Key) — 市值/交易量 (备选) + 交叉验证
+  5. CryptoRank (需 Key) — 融资/VC/团队数据
 """
 
 import asyncio
@@ -17,6 +18,19 @@ import httpx
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# 主流 CEX 标识符列表 (13 家)
+MAJOR_CEX_IDS = {
+    "binance", "coinbase", "kraken", "okex", "bybit", "kucoin", "huobi",
+    "bitget", "gate", "mexc", "bitfinex", "bithumb", "upbit",
+}
+
+# DEX 关键词 (用于过滤非 CEX)
+DEX_KEYWORDS = {
+    "uniswap", "sushiswap", "curve", "pancakeswap", "raydium", "1inch",
+    "dydx", "gmx", "defi", "swap", "dex", "amm", "balancer", "trader_joe",
+    "orca", "serum", "velodrome",
+}
 
 
 # ═══════════════════════════════════════════
@@ -79,13 +93,35 @@ class TokenDataPayload:
     unlock_event_30d: bool = False
     unlock_amount_usd: Optional[float] = None
 
+    # ── 新增字段 ──
+
+    # CryptoRank 融资/VC 数据
+    cryptorank_rank: Optional[int] = None
+    fundraise_rounds: Optional[int] = None
+    fundraise_total_usd: Optional[float] = None
+    top_vcs: list[str] = field(default_factory=list)
+
+    # 交易所分布 (from CG tickers)
+    exchange_count: Optional[int] = None
+    cex_count: Optional[int] = None
+    major_exchanges: list[str] = field(default_factory=list)
+    kucoin_volume_share: Optional[float] = None
+
+    # 交叉验证 (CG vs CMC 差异)
+    cg_cmc_divergence_pct: Optional[float] = None
+
+    # KuCoin 订单簿 (level1)
+    kucoin_best_bid: Optional[float] = None
+    kucoin_best_ask: Optional[float] = None
+    kucoin_spread_pct: Optional[float] = None
+
 
 # ═══════════════════════════════════════════
 # KuCoin Adapter (公开 API, 无需 Key)
 # ═══════════════════════════════════════════
 
 class KuCoinAdapter:
-    """KuCoin 公开 API — 获取现货币种列表 + 行情"""
+    """KuCoin 公开 API — 获取现货币种列表 + 行情 + 订单簿"""
 
     BASE_URL = "https://api.kucoin.com"
     TIMEOUT = 30
@@ -135,13 +171,39 @@ class KuCoinAdapter:
             if data.get("code") == "200000":
                 detail = data.get("data", {})
                 chains = detail.get("chains", [])
-                # 找第一条链的状态
                 deposit = None
                 withdraw = None
                 if chains:
                     deposit = chains[0].get("isDepositEnabled")
                     withdraw = chains[0].get("isWithdrawEnabled")
                 return {"deposit_enabled": deposit, "withdraw_enabled": withdraw}
+            return {}
+
+    async def fetch_market_detail(self, symbol: str) -> dict:
+        """获取订单簿 level1 数据 — bid/ask 深度与价差"""
+        try:
+            async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
+                resp = await client.get(
+                    f"{self.BASE_URL}/api/v1/market/orderbook/level1",
+                    params={"symbol": f"{symbol.upper()}-USDT"},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                if data.get("code") == "200000":
+                    d = data.get("data", {})
+                    best_ask = float(d["bestAsk"]) if d.get("bestAsk") else None
+                    best_bid = float(d["bestBid"]) if d.get("bestBid") else None
+                    spread_pct = None
+                    if best_ask and best_bid and best_bid > 0:
+                        spread_pct = round((best_ask - best_bid) / best_bid * 100, 4)
+                    return {
+                        "best_bid": best_bid,
+                        "best_ask": best_ask,
+                        "spread_pct": spread_pct,
+                    }
+            return {}
+        except Exception as e:
+            logger.warning(f"KuCoin market detail error for {symbol}: {e}")
             return {}
 
 
@@ -197,7 +259,7 @@ class CMCAdapter:
 # ═══════════════════════════════════════════
 
 class CoinGeckoAdapter:
-    """CoinGecko API — 市场数据 + 开发者 + 社区 + 合约地址"""
+    """CoinGecko API — 市场数据 + 开发者 + 社区 + 合约地址 + 交易所分布"""
 
     BASE_URL = "https://api.coingecko.com/api/v3"
     TIMEOUT = 30
@@ -229,7 +291,6 @@ class CoinGeckoAdapter:
                 coins = resp.json()
                 for coin in coins:
                     sym = coin["symbol"].upper()
-                    # 只保留第一个匹配 (通常是大市值的主流币)
                     if sym not in self._symbol_to_id:
                         self._symbol_to_id[sym] = coin["id"]
                 logger.info(f"CG: loaded {len(self._symbol_to_id)} symbol→id mappings")
@@ -332,7 +393,6 @@ class CoinGeckoAdapter:
                     "liquidity_score_cg": data.get("liquidity_score"),
                     "public_interest_score": data.get("public_interest_score"),
                     "sentiment_votes_up_pct": data.get("sentiment_votes_up_percentage"),
-                    # Extra market data not in /markets
                     "price_change_24h_pct": mkt.get("price_change_percentage_24h"),
                     "price_change_7d_pct": mkt.get("price_change_percentage_7d"),
                     "market_cap_usd": mkt.get("market_cap", {}).get("usd"),
@@ -340,6 +400,69 @@ class CoinGeckoAdapter:
                 }
         except httpx.HTTPError as e:
             logger.warning(f"CG detail error for {cg_id}: {e}")
+            return None
+
+    async def fetch_exchange_distribution(self, cg_id: str) -> Optional[dict]:
+        """获取交易所分布数据 — 解析 tickers 计算 CEX 数量 + 主流交易所 + KuCoin 占比"""
+        try:
+            async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
+                resp = await client.get(
+                    f"{self.BASE_URL}/coins/{cg_id}/tickers",
+                    headers=self._headers(),
+                    params={
+                        "include_exchange_logo": "false",
+                        "order": "volume_desc",
+                        "depth": "false",
+                    },
+                )
+                if resp.status_code in (429, 404):
+                    logger.warning(f"CG tickers unavailable for {cg_id}: {resp.status_code}")
+                    return None
+                resp.raise_for_status()
+                tickers = resp.json().get("tickers", [])
+
+                if not tickers:
+                    return None
+
+                exchange_ids: set[str] = set()
+                cex_ids: set[str] = set()
+                kucoin_vol = 0.0
+                total_vol = 0.0
+
+                for t in tickers:
+                    mkt = t.get("market", {})
+                    eid = (mkt.get("identifier") or mkt.get("name") or "").lower()
+                    vol = (t.get("converted_volume") or {}).get("usd") or 0
+
+                    if not eid:
+                        continue
+
+                    exchange_ids.add(eid)
+                    total_vol += vol
+
+                    # Classify as CEX if no DEX keywords in identifier
+                    is_dex = any(kw in eid for kw in DEX_KEYWORDS)
+                    if not is_dex:
+                        cex_ids.add(eid)
+
+                    if "kucoin" in eid:
+                        kucoin_vol += vol
+
+                # Find intersection with major CEX list
+                found_majors = sorted(
+                    eid for eid in MAJOR_CEX_IDS if eid in exchange_ids
+                )
+
+                kucoin_share = round(kucoin_vol / total_vol * 100, 2) if total_vol > 0 else None
+
+                return {
+                    "exchange_count": len(exchange_ids),
+                    "cex_count": len(cex_ids),
+                    "major_exchanges": found_majors,
+                    "kucoin_volume_share": kucoin_share,
+                }
+        except Exception as e:
+            logger.warning(f"CG exchange distribution error for {cg_id}: {e}")
             return None
 
 
@@ -353,7 +476,6 @@ class GoPlusAdapter:
     BASE_URL = "https://api.gopluslabs.io/api/v1"
     TIMEOUT = 15
 
-    # Solana chain_id for GoPlus
     CHAIN_ID_MAP = {
         "ethereum": "1",
         "bsc": "56",
@@ -418,18 +540,97 @@ class GoPlusAdapter:
 
 
 # ═══════════════════════════════════════════
+# CryptoRank Adapter
+# ═══════════════════════════════════════════
+
+class CryptoRankAdapter:
+    """CryptoRank API — 融资/VC/团队数据"""
+
+    BASE_URL = "https://api.cryptorank.io/v0"
+    TIMEOUT = 15
+
+    def is_configured(self) -> bool:
+        return bool(settings.cryptorank_api_key)
+
+    async def fetch_coin_data(self, coin_key: str) -> Optional[dict]:
+        """获取融资/VC 数据 (coin_key = symbol.lower())"""
+        if not self.is_configured():
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
+                resp = await client.get(
+                    f"{self.BASE_URL}/coins/{coin_key.lower()}",
+                    params={"api_key": settings.cryptorank_api_key},
+                )
+                if resp.status_code in (404, 422, 400):
+                    logger.debug(f"CryptoRank: coin not found: {coin_key}")
+                    return None
+                if resp.status_code == 429:
+                    logger.warning("CryptoRank rate limit")
+                    return None
+                resp.raise_for_status()
+                coin = resp.json().get("data", {})
+                if not coin:
+                    return None
+
+                # Parse fundraising data — structure varies by API version
+                fundraise_data = (
+                    coin.get("funds") or
+                    coin.get("fundraising") or
+                    coin.get("ico") or
+                    []
+                )
+                if not isinstance(fundraise_data, list):
+                    fundraise_data = []
+
+                fundraise_rounds = len(fundraise_data)
+                fundraise_total = sum(
+                    float(f.get("amount") or f.get("raised") or 0)
+                    for f in fundraise_data
+                )
+
+                vcs: set[str] = set()
+                for f in fundraise_data:
+                    investors = (
+                        f.get("leadInvestors") or
+                        f.get("investors") or
+                        f.get("backers") or
+                        []
+                    )
+                    for inv in investors:
+                        if isinstance(inv, dict):
+                            name = inv.get("name") or inv.get("slug") or ""
+                        else:
+                            name = str(inv)
+                        if name:
+                            vcs.add(name)
+                top_vcs = sorted(vcs)[:5]
+
+                return {
+                    "rank": coin.get("rank"),
+                    "fundraise_rounds": fundraise_rounds if fundraise_rounds > 0 else None,
+                    "fundraise_total_usd": fundraise_total if fundraise_total > 0 else None,
+                    "top_vcs": top_vcs,
+                }
+        except Exception as e:
+            logger.warning(f"CryptoRank error for {coin_key}: {e}")
+            return None
+
+
+# ═══════════════════════════════════════════
 # 统一数据获取入口
 # ═══════════════════════════════════════════
 
 class DataFetcher:
-    """统一数据获取 — 聚合 KuCoin + CMC + CoinGecko + GoPlus"""
+    """统一数据获取 — 聚合 KuCoin + CMC + CoinGecko + GoPlus + CryptoRank"""
 
     def __init__(self):
         self.kucoin = KuCoinAdapter()
         self.cmc = CMCAdapter()
         self.coingecko = CoinGeckoAdapter()
         self.goplus = GoPlusAdapter()
-        self._cg_cache: dict[str, dict] = {}  # symbol → CG detail cache
+        self.cryptorank = CryptoRankAdapter()
+        self._cg_cache: dict[str, dict] = {}
 
     async def get_token_list(self) -> list[dict]:
         return await self.kucoin.fetch_spot_symbols()
@@ -438,6 +639,11 @@ class DataFetcher:
         return await self.kucoin.fetch_tickers()
 
     async def fetch_token_data(self, symbol: str, ticker: Optional[dict] = None) -> TokenDataPayload:
+        """单币种数据获取 — 走完整 batch 流程"""
+        results = await self.fetch_batch([symbol])
+        if results:
+            return results[0]
+        # Fallback: basic payload from ticker
         payload = TokenDataPayload(symbol=symbol)
         if ticker:
             payload.price_usd = ticker.get("price")
@@ -445,20 +651,23 @@ class DataFetcher:
             payload.price_change_24h_pct = ticker.get("change_24h_pct")
         return payload
 
-    async def fetch_batch(self, symbols: list[str]) -> list[TokenDataPayload]:
+    async def fetch_batch(self, symbols: list[str]) -> list["TokenDataPayload"]:
         """
         批量获取数据 — 聚合所有数据源:
         1. KuCoin ticker (行情 + 成交量)
         2. CoinGecko 市场数据 (市值/流通量/排名)
         3. CoinGecko 详情 (开发者/社区/合约地址) — 首批 30 个
-        4. GoPlus 合约安全 — 有合约地址的
-        5. CMC (如果 Key 已配置)
+        4. CoinGecko 交易所分布 (tickers) — 首批 30 个有 cg_id 的
+        5. GoPlus 合约安全 — 有合约地址的
+        6. CMC (如果 Key 已配置) + 交叉验证
+        7. CryptoRank 融资数据 — 首批 10 个
+        8. KuCoin 订单簿 level1 — 单币种或前 20 个
         """
         all_tickers = await self.fetch_all_tickers()
 
         # ── CoinGecko 市场数据 ──
-        cg_market = {}
-        cg_details = {}
+        cg_market: dict[str, dict] = {}
+        cg_details: dict[str, dict] = {}
         if self.coingecko.is_configured():
             symbol_to_id = await self.coingecko.get_cg_ids(symbols)
             cg_ids = list(set(symbol_to_id.values()))
@@ -466,7 +675,7 @@ class DataFetcher:
                 cg_market = await self.coingecko.fetch_markets_batch(cg_ids)
 
         # ── CMC 备选 ──
-        cmc_data = {}
+        cmc_data: dict[str, dict] = {}
         if self.cmc.is_configured():
             cmc_data = await self.cmc.fetch_quotes(symbols)
 
@@ -509,12 +718,19 @@ class DataFetcher:
             elif not payload.name:
                 payload.name = sym
 
-            # KuCoin 充提状态 — 取前 50 个批量查
-            # 暂不对全量调用以节省 API 限额
-
             results.append(payload)
 
-        # ── KuCoin 充提状态 (前 50 个) ──
+        # ── 交叉验证 (CG vs CMC 供应量/价格差异) ──
+        for r in results:
+            sym = r.symbol
+            if sym in cg_market and sym in cmc_data:
+                cg = cg_market[sym]
+                cmc = cmc_data[sym]
+                cg_supply = cg.get("circulating_supply") or 0
+                cmc_supply = cmc.get("circulating_supply") or 0
+                if cg_supply > 0 and cmc_supply > 0:
+                    divergence = abs(cg_supply - cmc_supply) / max(cg_supply, cmc_supply) * 100
+                    r.cg_cmc_divergence_pct = round(divergence, 2)
 
         # ── KuCoin 充提状态 (前 50 个) ──
         kucoin_detail_tasks = [self.kucoin.fetch_symbol_detail(r.symbol) for r in results[:50]]
@@ -524,27 +740,48 @@ class DataFetcher:
                 r.kucoin_deposit_enabled = kd.get("deposit_enabled")
                 r.kucoin_withdraw_enabled = kd.get("withdraw_enabled")
 
-        # ── CoinGecko 详情 (开发者数据 + 合约地址) — 取前 30 个有 cg_id 的 ──
-        if self.coingecko.is_configured():
-            detail_symbols = [r for r in results if r.cg_id][:30]
-            if detail_symbols:
-                logger.info(f"Fetching CG details for {len(detail_symbols)} tokens...")
-                detail_tasks = [self.coingecko.fetch_coin_detail(r.cg_id) for r in detail_symbols]
-                detail_results = await asyncio.gather(*detail_tasks, return_exceptions=True)
+        # ── KuCoin 订单簿 level1 (前 20 个 or 单币种) ──
+        orderbook_limit = min(len(results), 20 if len(symbols) > 1 else len(results))
+        orderbook_tasks = [self.kucoin.fetch_market_detail(r.symbol) for r in results[:orderbook_limit]]
+        orderbook_results = await asyncio.gather(*orderbook_tasks, return_exceptions=True)
+        for r, od in zip(results[:orderbook_limit], orderbook_results):
+            if isinstance(od, dict) and od:
+                r.kucoin_best_bid = od.get("best_bid")
+                r.kucoin_best_ask = od.get("best_ask")
+                r.kucoin_spread_pct = od.get("spread_pct")
 
-                for payload, detail in zip(detail_symbols, detail_results):
-                    if isinstance(detail, dict):
-                        payload.github_commits_30d = detail.get("github_commits_30d")
-                        payload.developer_score = detail.get("developer_score")
-                        payload.community_score = detail.get("community_score")
-                        payload.liquidity_score_cg = detail.get("liquidity_score_cg")
-                        payload.public_interest_score = detail.get("public_interest_score")
-                        payload.cg_platforms = detail.get("platforms", {})
-                        # Fill in missing CG market data from detail
-                        if not payload.market_cap_usd:
-                            payload.market_cap_usd = detail.get("market_cap_usd")
-                        if not payload.volume_24h_usd:
-                            payload.volume_24h_usd = detail.get("volume_24h_usd")
+        # ── CoinGecko 详情 (开发者数据 + 合约地址) — 前 30 个有 cg_id 的 ──
+        detail_symbols = [r for r in results if r.cg_id][:30]
+        if self.coingecko.is_configured() and detail_symbols:
+            logger.info(f"Fetching CG details for {len(detail_symbols)} tokens...")
+            detail_tasks = [self.coingecko.fetch_coin_detail(r.cg_id) for r in detail_symbols]
+            detail_results = await asyncio.gather(*detail_tasks, return_exceptions=True)
+
+            for payload, detail in zip(detail_symbols, detail_results):
+                if isinstance(detail, dict):
+                    payload.github_commits_30d = detail.get("github_commits_30d")
+                    payload.developer_score = detail.get("developer_score")
+                    payload.community_score = detail.get("community_score")
+                    payload.liquidity_score_cg = detail.get("liquidity_score_cg")
+                    payload.public_interest_score = detail.get("public_interest_score")
+                    payload.cg_platforms = detail.get("platforms", {})
+                    if not payload.market_cap_usd:
+                        payload.market_cap_usd = detail.get("market_cap_usd")
+                    if not payload.volume_24h_usd:
+                        payload.volume_24h_usd = detail.get("volume_24h_usd")
+
+        # ── CoinGecko 交易所分布 (前 30 个有 cg_id 的) ──
+        if self.coingecko.is_configured() and detail_symbols:
+            logger.info(f"Fetching CG exchange distribution for {len(detail_symbols)} tokens...")
+            dist_tasks = [self.coingecko.fetch_exchange_distribution(r.cg_id) for r in detail_symbols]
+            dist_results = await asyncio.gather(*dist_tasks, return_exceptions=True)
+
+            for payload, dist in zip(detail_symbols, dist_results):
+                if isinstance(dist, dict) and dist:
+                    payload.exchange_count = dist.get("exchange_count")
+                    payload.cex_count = dist.get("cex_count")
+                    payload.major_exchanges = dist.get("major_exchanges", [])
+                    payload.kucoin_volume_share = dist.get("kucoin_volume_share")
 
         # ── GoPlus 合约安全 ──
         goplus_tasks = []
@@ -573,9 +810,23 @@ class DataFetcher:
                     payload.is_honeypot = gp.get("is_honeypot", False)
                     payload.is_proxy = gp.get("is_proxy", False)
 
+        # ── CryptoRank 融资数据 (前 10 个有 cg_id 的) ──
+        cr_symbols = [r for r in results if r.cg_id][:10]
+        if self.cryptorank.is_configured() and cr_symbols:
+            logger.info(f"CryptoRank: fetching fundraise data for {len(cr_symbols)} tokens...")
+            cr_tasks = [self.cryptorank.fetch_coin_data(r.symbol) for r in cr_symbols]
+            cr_results = await asyncio.gather(*cr_tasks, return_exceptions=True)
+
+            for payload, cr in zip(cr_symbols, cr_results):
+                if isinstance(cr, dict) and cr:
+                    payload.cryptorank_rank = cr.get("rank")
+                    payload.fundraise_rounds = cr.get("fundraise_rounds")
+                    payload.fundraise_total_usd = cr.get("fundraise_total_usd")
+                    payload.top_vcs = cr.get("top_vcs", [])
+
         logger.info(
             f"DataFetcher: {len(results)} tokens, "
-            f"CG market={len(cg_market)}, CG detail={len(detail_symbols) if self.coingecko.is_configured() else 0}, "
-            f"GoPlus={len(goplus_tasks)}"
+            f"CG market={len(cg_market)}, CG detail={len(detail_symbols)}, "
+            f"GoPlus={len(goplus_tasks)}, CryptoRank={len(cr_symbols)}"
         )
         return results
