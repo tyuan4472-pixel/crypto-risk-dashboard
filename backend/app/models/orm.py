@@ -40,8 +40,8 @@ class TokenScore(Base):
     sentiment_summary = Column(Text)
 
     # 时间戳
-    evaluated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
-    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    evaluated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     __table_args__ = (
         Index("idx_token_scores_risk_level", "risk_level"),

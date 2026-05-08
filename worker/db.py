@@ -45,7 +45,7 @@ def bulk_insert_scores(records: list[dict]) -> int:
         "fundamental_score", "sentiment_score", "compliance_score",
         "security_score", "macro_score",
         "market_cap_usd", "volume_24h_usd", "price_usd",
-        "risk_details", "sentiment_summary", "evaluated_at",
+        "risk_details", "sentiment_summary", "evaluated_at", "created_at",
     ]
 
     placeholders = ', '.join(['%s'] * len(columns))
@@ -71,6 +71,7 @@ def bulk_insert_scores(records: list[dict]) -> int:
             r.get("price_usd"),
             json.dumps(r.get("risk_details", []), ensure_ascii=False),
             r.get("sentiment_summary", ""),
+            datetime.now(timezone.utc),
             datetime.now(timezone.utc),
         ))
 
