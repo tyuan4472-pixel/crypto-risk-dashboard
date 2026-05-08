@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # ── Nginx 反向代理 ──
   nginx:
@@ -47,7 +45,6 @@ services:
     build:
       context: .
       dockerfile: worker/Dockerfile
-    container_name: risk-worker
     env_file:
       - .env
     depends_on:
