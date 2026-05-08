@@ -5,20 +5,27 @@
 """
 
 import os
-import sys
 from dotenv import load_dotenv
 
-# 加载 backend/.env (Worker 和 Backend 共享配置)
+# 加载 backend/.env
 env_path = os.path.join(os.path.dirname(__file__), '..', 'backend', '.env')
-loaded = load_dotenv(env_path, override=True)
-if not loaded:
-    # 也尝试从当前工作目录加载
-    load_dotenv(os.path.join(os.getcwd(), '..', 'backend', '.env'), override=True)
+load_dotenv(env_path, override=True)
+
+# 本地开发强制兜底：Docker 内网主机名 → localhost
+_redis = os.getenv("REDIS_URL", "")
+if not _redis or "redis:6379" in _redis or "postgres:" in _redis:
+    os.environ["REDIS_URL"] = "redis://localhost:6379/0"
+    print(f"[Worker] REDIS_URL fixed → redis://localhost:6379/0 (was: {_redis!r})")
+
+_db = os.getenv("DB_HOST", "")
+if not _db or _db in ("postgres", "redis"):
+    os.environ["DB_HOST"] = "localhost"
+    print(f"[Worker] DB_HOST fixed → localhost (was: {_db!r})")
 
 
 class WorkerConfig:
-    # 数据库 (同步, Worker 不用 async)
-    DB_HOST = os.getenv("DB_HOST", "postgres")
+    # 数据库
+    DB_HOST = os.getenv("DB_HOST", "localhost")
     DB_PORT = os.getenv("DB_PORT", "5432")
     DB_USER = os.getenv("DB_USER", "risk")
     DB_PASSWORD = os.getenv("DB_PASSWORD", "changeme")
@@ -29,9 +36,9 @@ class WorkerConfig:
         return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
     # Redis
-    REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-    # 外部 API (供 data_fetcher 使用)
+    # 外部 API
     CMC_API_KEY = os.getenv("CMC_API_KEY", "")
     COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY", "")
     GOPLUS_API_KEY = os.getenv("GOPLUS_API_KEY", "")
