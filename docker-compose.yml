@@ -44,7 +44,9 @@ services:
 
   # ── Celery Worker (评估引擎) ──
   worker:
-    build: ./worker
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
     container_name: risk-worker
     env_file:
       - .env
@@ -59,7 +61,9 @@ services:
 
   # ── Celery Beat (定时调度) ──
   beat:
-    build: ./worker
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
     container_name: risk-beat
     command: celery -A tasks beat --loglevel=info
     env_file:
