@@ -5,10 +5,15 @@
 """
 
 import os
+import sys
 from dotenv import load_dotenv
 
 # 加载 backend/.env (Worker 和 Backend 共享配置)
-load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'backend', '.env'))
+env_path = os.path.join(os.path.dirname(__file__), '..', 'backend', '.env')
+loaded = load_dotenv(env_path, override=True)
+if not loaded:
+    # 也尝试从当前工作目录加载
+    load_dotenv(os.path.join(os.getcwd(), '..', 'backend', '.env'), override=True)
 
 
 class WorkerConfig:
@@ -29,11 +34,13 @@ class WorkerConfig:
     # 外部 API (供 data_fetcher 使用)
     CMC_API_KEY = os.getenv("CMC_API_KEY", "")
     COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY", "")
+    GOPLUS_API_KEY = os.getenv("GOPLUS_API_KEY", "")
     KUCOIN_API_KEY = os.getenv("KUCOIN_API_KEY", "")
     KUCOIN_API_SECRET = os.getenv("KUCOIN_API_SECRET", "")
     KUCOIN_API_PASSPHRASE = os.getenv("KUCOIN_API_PASSPHRASE", "")
 
-    # AI 模型 (Phase 2)
+    # AI 模型
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
     DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "")
 
