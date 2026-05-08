@@ -240,6 +240,210 @@ export default function TokenDetailPage() {
         </section>
       )}
 
+      {/* ── Exchange Distribution Card ── */}
+      {(extra.exchange_count != null || extra.cex_count != null) && (
+        <section className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+          <h2 className="text-sm font-semibold mb-3 text-gray-400 uppercase tracking-wide">🏦 交易所分布</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <div className="text-xs text-gray-500">上线交易所</div>
+              <div className="text-xl font-bold text-white">{extra.exchange_count ?? "--"}</div>
+              <div className="text-xs text-gray-600 mt-1">家</div>
+            </div>
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <div className="text-xs text-gray-500">主流 CEX</div>
+              <div className="text-xl font-bold text-white">{extra.cex_count ?? "--"}</div>
+              <div className="text-xs text-gray-600 mt-1">家</div>
+            </div>
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <div className="text-xs text-gray-500">独占性</div>
+              <div className={`text-sm font-bold mt-1 ${
+                (extra.cex_count ?? 0) >= 10 ? "text-green-400" :
+                (extra.cex_count ?? 0) >= 5 ? "text-yellow-400" : "text-red-400"
+              }`}>
+                {(extra.cex_count ?? 0) >= 10 ? "低风险" : (extra.cex_count ?? 0) >= 5 ? "中风险" : "高风险"}
+              </div>
+            </div>
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <div className="text-xs text-gray-500">KuCoin 量占比</div>
+              <div className="text-xl font-bold text-white">
+                {extra.kucoin_volume_share != null ? `${extra.kucoin_volume_share.toFixed(1)}%` : "--"}
+              </div>
+            </div>
+          </div>
+          {extra.major_exchanges && extra.major_exchanges.length > 0 && (
+            <div>
+              <div className="text-xs text-gray-500 mb-2">主流交易所覆盖 ({extra.major_exchanges.length}/13)</div>
+              <div className="flex flex-wrap gap-1.5">
+                {extra.major_exchanges.map((ex, i) => (
+                  <span key={i} className="text-xs bg-blue-900/50 text-blue-300 border border-blue-800 px-2 py-0.5 rounded">{ex}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ── Cross Validation Card ── */}
+      {extra.cg_cmc_divergence_pct != null && (
+        <section className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+          <h2 className="text-sm font-semibold mb-3 text-gray-400 uppercase tracking-wide">🔁 数据交叉验证 (CG vs CMC)</h2>
+          <div className="flex items-center gap-4">
+            <div className={`text-2xl font-bold ${
+              extra.cg_cmc_divergence_pct > 10 ? "text-red-400" :
+              extra.cg_cmc_divergence_pct > 5 ? "text-yellow-400" : "text-green-400"
+            }`}>
+              {extra.cg_cmc_divergence_pct.toFixed(2)}%
+            </div>
+            <div>
+              <div className="text-sm text-gray-300">
+                {extra.cg_cmc_divergence_pct > 10
+                  ? "⚠️ 数据差异较大 — 可能存在数据操纵或双重计算"
+                  : extra.cg_cmc_divergence_pct > 5
+                  ? "⚡ 轻微差异 — 数据源口径不同"
+                  : "✅ 一致 — CG 与 CMC 数据吻合"}
+              </div>
+              <div className="text-xs text-gray-600 mt-1">流通量差异百分比 (CoinGecko vs CoinMarketCap)</div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── KuCoin Market Card ── */}
+      {(extra.kucoin_best_bid != null || extra.kucoin_best_ask != null) && (
+        <section className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+          <h2 className="text-sm font-semibold mb-3 text-gray-400 uppercase tracking-wide">📊 KuCoin 盘口数据</h2>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <div className="text-xs text-gray-500">最优买价 (Bid)</div>
+              <div className="text-base font-bold text-green-400">
+                {extra.kucoin_best_bid != null ? `$${extra.kucoin_best_bid.toPrecision(6)}` : "--"}
+              </div>
+            </div>
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <div className="text-xs text-gray-500">最优卖价 (Ask)</div>
+              <div className="text-base font-bold text-red-400">
+                {extra.kucoin_best_ask != null ? `$${extra.kucoin_best_ask.toPrecision(6)}` : "--"}
+              </div>
+            </div>
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <div className="text-xs text-gray-500">价差 (Spread)</div>
+              <div className={`text-base font-bold ${
+                extra.kucoin_spread_pct != null && extra.kucoin_spread_pct > 1 ? "text-red-400" :
+                extra.kucoin_spread_pct != null && extra.kucoin_spread_pct > 0.3 ? "text-yellow-400" : "text-green-400"
+              }`}>
+                {extra.kucoin_spread_pct != null ? `${extra.kucoin_spread_pct.toFixed(4)}%` : "--"}
+              </div>
+            </div>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <span className={`text-xs px-2 py-0.5 rounded border ${
+              extra.kucoin_deposit_enabled === false || extra.kucoin_withdraw_enabled === false
+                ? "bg-red-900/30 border-red-700 text-red-400"
+                : "bg-green-900/30 border-green-700 text-green-400"
+            }`}>
+              {extra.kucoin_deposit_enabled === false ? "⚠️ ST 限制" : "正常交易"}
+            </span>
+            {extra.kucoin_spread_pct != null && extra.kucoin_spread_pct > 1 && (
+              <span className="text-xs text-orange-400">⚠️ 价差过大，流动性差</span>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ── Sentiment Section ── */}
+      {extra.sentiment && (
+        <section className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+          <h2 className="text-sm font-semibold mb-3 text-gray-400 uppercase tracking-wide">💬 社区情绪分析</h2>
+          <div className="flex items-center gap-6 mb-3">
+            {/* Sentiment gauge */}
+            <div className="flex flex-col items-center">
+              <div className="relative w-24 h-12 overflow-hidden">
+                <div className="absolute inset-0 rounded-t-full bg-gradient-to-r from-red-500 via-yellow-400 to-green-500 opacity-30" />
+                <div
+                  className="absolute bottom-0 left-1/2 w-1 h-10 bg-white rounded-full origin-bottom"
+                  style={{
+                    transform: `translateX(-50%) rotate(${
+                      ((extra.sentiment.positive_pct ?? 50) - 50) * 0.9
+                    }deg)`,
+                  }}
+                />
+              </div>
+              <div className="text-xl font-bold mt-1">
+                {extra.sentiment.positive_pct != null ? `${extra.sentiment.positive_pct.toFixed(0)}%` : "--"}
+              </div>
+              <div className="text-xs text-gray-500">正面情绪</div>
+            </div>
+            <div className="flex-1">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-green-400">正面 {extra.sentiment.positive_pct?.toFixed(0) ?? "--"}%</span>
+                <span className="text-red-400">负面 {extra.sentiment.negative_pct?.toFixed(0) ?? "--"}%</span>
+              </div>
+              {/* Progress bar */}
+              <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-green-500 to-green-400 rounded-full"
+                  style={{ width: `${extra.sentiment.positive_pct ?? 50}%` }}
+                />
+              </div>
+              {extra.sentiment.summary && (
+                <p className="text-sm text-gray-300 mt-2">{extra.sentiment.summary}</p>
+              )}
+            </div>
+          </div>
+          {extra.sentiment.risks_found && extra.sentiment.risks_found.length > 0 && (
+            <div>
+              <div className="text-xs text-gray-500 mb-1">情绪风险信号</div>
+              <div className="space-y-1">
+                {extra.sentiment.risks_found.map((r, i) => (
+                  <div key={i} className="text-xs text-orange-300 flex items-center gap-1">
+                    <span className="w-1 h-1 rounded-full bg-orange-400 flex-shrink-0" />
+                    {r}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ── CryptoRank Fundraising ── */}
+      {(extra.fundraise_rounds != null || extra.cryptorank_rank != null) && (
+        <section className="bg-gray-900 rounded-lg border border-gray-800 p-4">
+          <h2 className="text-sm font-semibold mb-3 text-gray-400 uppercase tracking-wide">💰 融资 & VC 背景 (CryptoRank)</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
+            {extra.cryptorank_rank != null && (
+              <div className="bg-gray-800/50 rounded-lg p-3">
+                <div className="text-xs text-gray-500">CryptoRank 排名</div>
+                <div className="text-lg font-bold">#{extra.cryptorank_rank}</div>
+              </div>
+            )}
+            {extra.fundraise_rounds != null && (
+              <div className="bg-gray-800/50 rounded-lg p-3">
+                <div className="text-xs text-gray-500">融资轮次</div>
+                <div className="text-lg font-bold">{extra.fundraise_rounds}</div>
+              </div>
+            )}
+            {extra.fundraise_total_usd != null && (
+              <div className="bg-gray-800/50 rounded-lg p-3">
+                <div className="text-xs text-gray-500">融资总额</div>
+                <div className="text-lg font-bold">{formatUsd(extra.fundraise_total_usd)}</div>
+              </div>
+            )}
+          </div>
+          {extra.top_vcs && extra.top_vcs.length > 0 && (
+            <div>
+              <div className="text-xs text-gray-500 mb-2">主要投资机构</div>
+              <div className="flex flex-wrap gap-1.5">
+                {extra.top_vcs.map((vc, i) => (
+                  <span key={i} className="text-xs bg-purple-900/40 text-purple-300 border border-purple-800 px-2 py-0.5 rounded">{vc}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* ── Score History ── */}
       {token.history_30d && token.history_30d.length > 1 && (
         <section className="bg-gray-900 rounded-lg border border-gray-800 p-4">

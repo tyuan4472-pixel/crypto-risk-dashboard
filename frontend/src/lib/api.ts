@@ -53,6 +53,37 @@ export interface ZombieDetection {
   flags: string[];
 }
 
+export interface ExchangeDistribution {
+  exchange_count?: number | null;
+  cex_count?: number | null;
+  major_exchanges?: string[];
+  kucoin_volume_share?: number | null;
+}
+
+export interface CrossValidation {
+  cg_cmc_divergence_pct?: number | null;
+}
+
+export interface SentimentData {
+  positive_pct?: number | null;
+  negative_pct?: number | null;
+  summary?: string | null;
+  risks_found?: string[];
+}
+
+export interface KuCoinMarket {
+  best_bid?: number | null;
+  best_ask?: number | null;
+  spread_pct?: number | null;
+}
+
+export interface CryptoRankData {
+  rank?: number | null;
+  fundraise_rounds?: number | null;
+  fundraise_total_usd?: number | null;
+  top_vcs?: string[];
+}
+
 export interface ExtraData {
   market_cap_rank?: number | null;
   holder_count?: number | null;
@@ -65,6 +96,24 @@ export interface ExtraData {
   developer_score?: number | null;
   community_score?: number | null;
   top10_holder_ratio?: number | null;
+  // Exchange distribution
+  exchange_count?: number | null;
+  cex_count?: number | null;
+  major_exchanges?: string[];
+  kucoin_volume_share?: number | null;
+  // Cross-validation
+  cg_cmc_divergence_pct?: number | null;
+  // CryptoRank
+  cryptorank_rank?: number | null;
+  fundraise_total_usd?: number | null;
+  fundraise_rounds?: number | null;
+  top_vcs?: string[];
+  // KuCoin orderbook
+  kucoin_best_bid?: number | null;
+  kucoin_best_ask?: number | null;
+  kucoin_spread_pct?: number | null;
+  // Sentiment
+  sentiment?: SentimentData | null;
 }
 
 export interface RiskDetail {
