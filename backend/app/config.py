@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     x_bearer_token: str = ""
 
     # AI 模型
+    anthropic_api_key: str = ""
     openrouter_api_key: str = ""
     dashscope_api_key: str = ""
 

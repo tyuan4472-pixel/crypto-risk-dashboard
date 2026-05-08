@@ -68,8 +68,39 @@ async def test_goplus():
         return f"❌ GoPlus 连接失败: {e}"
 
 
+async def test_anthropic():
+    """测试 Anthropic 原生 API Key"""
+    key = os.getenv("ANTHROPIC_API_KEY") or os.getenv("anthropic_api_key", "")
+    if not key:
+        return "⚠️ ANTHROPIC_API_KEY 未设置 (将尝试 OpenRouter)"
+
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": key,
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "claude-haiku-4-5",
+                    "max_tokens": 5,
+                    "messages": [{"role": "user", "content": "Say OK"}],
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                reply = data["content"][0]["text"]
+                return f"✅ Anthropic OK → '{reply.strip()}'"
+            else:
+                return f"❌ Anthropic {resp.status_code}: {resp.text[:200]}"
+    except Exception as e:
+        return f"❌ Anthropic 连接失败: {e}"
+
+
 async def test_openrouter():
-    """测试 OpenRouter (Claude) API Key"""
+    """测试 OpenRouter API Key (备用)"""
     key = os.getenv("OPENROUTER_API_KEY") or os.getenv("openrouter_api_key", "")
     if not key:
         return "❌ OPENROUTER_API_KEY 未设置"
@@ -148,6 +179,7 @@ async def main():
     results = await asyncio.gather(
         test_coinchecko(),
         test_goplus(),
+        test_anthropic(),
         test_openrouter(),
         test_dashscope(),
         test_kuCoin(),
