@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, Integer, String, Numeric, Boolean, Text, DateTime, JSON, Index
+    Column, Integer, String, Numeric, Boolean, Text, DateTime, JSON, Index, text
 )
 from sqlalchemy.dialects.postgresql import JSONB
 
