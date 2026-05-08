@@ -5,6 +5,10 @@
 """
 
 import os
+from dotenv import load_dotenv
+
+# 加载 backend/.env (Worker 和 Backend 共享配置)
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'backend', '.env'))
 
 
 class WorkerConfig:
@@ -23,7 +27,6 @@ class WorkerConfig:
     REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
     # 外部 API (供 data_fetcher 使用)
-    # ⚠️ 填入 .env，不硬编码
     CMC_API_KEY = os.getenv("CMC_API_KEY", "")
     COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY", "")
     KUCOIN_API_KEY = os.getenv("KUCOIN_API_KEY", "")
@@ -31,7 +34,6 @@ class WorkerConfig:
     KUCOIN_API_PASSPHRASE = os.getenv("KUCOIN_API_PASSPHRASE", "")
 
     # AI 模型 (Phase 2)
-    # ⚠️ 填入 .env
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
     DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "")
 
