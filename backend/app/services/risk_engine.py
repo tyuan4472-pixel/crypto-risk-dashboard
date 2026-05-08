@@ -226,8 +226,39 @@ class RiskEngine:
 
         return score
 
+    def _score_exchange_distribution(self, data: TokenDataPayload) -> float:
+        """交易所分布评分 — 基于 CEX 数量与主流交易所覆盖"""
+        if data.cex_count is None and data.exchange_count is None:
+            return 50  # 无数据，中性
+
+        score = 40
+
+        # CEX 数量
+        cex = data.cex_count or 0
+        if cex >= 30: score += 45
+        elif cex >= 20: score += 35
+        elif cex >= 10: score += 25
+        elif cex >= 5: score += 15
+        elif cex >= 3: score += 5
+        elif cex == 0: score -= 20
+
+        # 主流交易所覆盖 (13 家基准)
+        major_count = len(data.major_exchanges)
+        if major_count >= 8: score += 15
+        elif major_count >= 5: score += 10
+        elif major_count >= 3: score += 5
+        elif major_count == 0: score -= 10
+
+        return score
+
+    def _cross_validate(self, data: TokenDataPayload) -> bool:
+        """交叉验证 — 检测 CG vs CMC 数据差异 > 10% (数据操纵信号)"""
+        if data.cg_cmc_divergence_pct is None:
+            return False
+        return data.cg_cmc_divergence_pct > 10.0
+
     def _score_compliance(self, data: TokenDataPayload) -> float:
-        """交易所合规 — KuCoin 充提状态 + 交易所列表"""
+        """交易所合规 — KuCoin 充提状态 + 交易所分布 + 下架预警"""
         score = 70
 
         # KuCoin 充提状态 (最关键)
@@ -242,11 +273,15 @@ class RiskEngine:
         if data.exchange_delist_warning:
             score -= 30
 
-        # 上架所数量
+        # 上架所数量 (legacy exchange_listings)
         listings = len(data.exchange_listings)
         if listings > 30: score += 15
         elif listings > 15: score += 10
         elif listings < 3 and listings > 0: score -= 10
+
+        # 交易所分布评分加权整合 (占 compliance 的 30%)
+        dist_score = self._score_exchange_distribution(data)
+        score = score * 0.7 + dist_score * 0.3
 
         return score
 
@@ -450,6 +485,45 @@ class RiskEngine:
                 "severity": "medium",
                 "description": f"距 ATH 下跌 {abs(data.ath_pct):.0f}%",
                 "source": "CoinGecko",
+            })
+
+        # ── 交易所分布风险 ──
+        if data.cex_count is not None and data.cex_count <= 3:
+            details.append({
+                "category": "交易所覆盖不足",
+                "severity": "high" if data.cex_count <= 1 else "medium",
+                "description": f"仅上线 {data.cex_count} 家 CEX，流动性高度依赖单一平台，下架连锁风险大",
+                "source": "CoinGecko Tickers",
+            })
+
+        if data.cex_count is not None and data.cex_count > 3:
+            major_count = len(data.major_exchanges)
+            if major_count == 0:
+                details.append({
+                    "category": "主流交易所缺失",
+                    "severity": "medium",
+                    "description": f"上线 {data.cex_count} 家 CEX 但无主流交易所 (Binance/Coinbase 等)，信誉背书弱",
+                    "source": "CoinGecko Tickers",
+                })
+
+        # ── 下架连锁风险 ──
+        if (data.kucoin_deposit_enabled is False or data.exchange_delist_warning) and (
+            data.cex_count is not None and data.cex_count <= 5
+        ):
+            details.append({
+                "category": "下架连锁风险",
+                "severity": "high",
+                "description": "KuCoin 已限制充提且上架所数量少，若下架将导致严重流动性危机",
+                "source": "KuCoin + CoinGecko Tickers",
+            })
+
+        # ── 数据交叉验证异常 ──
+        if self._cross_validate(data):
+            details.append({
+                "category": "数据一致性异常",
+                "severity": "medium",
+                "description": f"CoinGecko vs CMC 流通量差异 {data.cg_cmc_divergence_pct:.1f}% (>10%)，可能存在数据操纵或双重计算",
+                "source": "CG + CMC 交叉验证",
             })
 
         return details

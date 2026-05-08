@@ -136,6 +136,26 @@ class ModelRouter:
         result = await self.call(TaskType.SENTIMENT_ANALYSIS, prompt, max_tokens=800)
         return result.content
 
+    async def sentiment_batch(self, tokens_text: str) -> str:
+        """批量情绪分析 — 多币种社区数据 + 价格变化 + 成交量"""
+        prompt = f"""你是一个加密货币风险分析师。以下是多个代币的社区和市场数据:
+
+{tokens_text[:8000]}
+
+请对每个代币进行情绪分析。输出纯 JSON (不要 markdown 代码块):
+{{
+  "tokens": {{
+    "SYMBOL": {{
+      "positive_pct": 0-100,
+      "negative_pct": 0-100,
+      "summary": "中文摘要, 30字以内, 核心结论",
+      "risks_found": ["风险信号1", "风险信号2"]
+    }}
+  }}
+}}"""
+        result = await self.call(TaskType.SENTIMENT_ANALYSIS, prompt, max_tokens=2000)
+        return result.content
+
     async def generate_risk_report(self, symbol: str, token_data: dict) -> str:
         """生成深度风险报告"""
         prompt = f"""你是一个加密货币风控专家。请为以下币种生成结构化风险评估报告。
