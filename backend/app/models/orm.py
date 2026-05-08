@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, Integer, String, Numeric, Boolean, Text, DateTime, JSON, Index, text
+    Column, Integer, String, Numeric, Boolean, Text, DateTime, JSON, Index, text, func
 )
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -75,5 +75,5 @@ class ScanLog(Base):
     completed = Column(Integer, nullable=False, server_default=text("0"))
     failed = Column(Integer, nullable=False, server_default=text("0"))
     status = Column(String(20), nullable=False, default="running")  # running | completed | failed
-    started_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    started_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     finished_at = Column(DateTime(timezone=True))
