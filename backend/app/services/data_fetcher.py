@@ -509,10 +509,20 @@ class DataFetcher:
             elif not payload.name:
                 payload.name = sym
 
-            # KuCoin 充提状态 (high-risk tokens only, fetched on demand)
+            # KuCoin 充提状态 — 取前 50 个批量查
             # 暂不对全量调用以节省 API 限额
 
             results.append(payload)
+
+        # ── KuCoin 充提状态 (前 50 个) ──
+
+        # ── KuCoin 充提状态 (前 50 个) ──
+        kucoin_detail_tasks = [self.kucoin.fetch_symbol_detail(r.symbol) for r in results[:50]]
+        kucoin_results = await asyncio.gather(*kucoin_detail_tasks, return_exceptions=True)
+        for r, kd in zip(results[:50], kucoin_results):
+            if isinstance(kd, dict):
+                r.kucoin_deposit_enabled = kd.get("deposit_enabled")
+                r.kucoin_withdraw_enabled = kd.get("withdraw_enabled")
 
         # ── CoinGecko 详情 (开发者数据 + 合约地址) — 取前 30 个有 cg_id 的 ──
         if self.coingecko.is_configured():
