@@ -2,6 +2,134 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Base ── */
 body {
-  @apply bg-gray-950 text-gray-100 antialiased;
+  background-color: #0A0A0B;
+  color: #F8FAFC;
+  @apply antialiased;
+}
+
+/* ── Custom scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Glassmorphism ── */
+@layer components {
+  .glass-card {
+    @apply bg-white/[0.03] backdrop-blur-sm border border-white/[0.06] rounded-2xl;
+  }
+
+  .glass-card-hover {
+    @apply glass-card transition-all duration-300 hover:bg-white/[0.06] hover:border-white/[0.10];
+  }
+
+  .glass-input {
+    @apply bg-white/[0.05] border border-white/[0.08] rounded-xl backdrop-blur-sm
+           focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/30
+           transition-all duration-200;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent;
+  }
+
+  .gradient-accent {
+    @apply bg-gradient-to-r from-blue-500 to-cyan-400;
+  }
+
+  .section-title {
+    @apply text-xs font-semibold uppercase tracking-widest text-slate-400
+           border-l-2 border-blue-500 pl-3 mb-4;
+  }
+
+  .stat-card {
+    @apply glass-card p-6 relative overflow-hidden;
+  }
+
+  .badge-risk {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border;
+  }
+}
+
+/* ── Animations ── */
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 0.8; }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes radar-glow {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.4)); }
+  50%       { filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.7)); }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 6s ease infinite;
+}
+
+.animate-glow {
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s ease both;
+}
+
+.animate-radar-glow {
+  animation: radar-glow 3s ease-in-out infinite;
+}
+
+/* ── Staggered animation delays ── */
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+
+/* ── Table ── */
+.token-table-row {
+  @apply border-b border-white/[0.04] hover:bg-white/[0.03] transition-all duration-200;
+}
+
+/* ── Progress bar ── */
+.progress-gradient {
+  @apply h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500;
+}
+
+/* ── Pulse dot for active states ── */
+.pulse-dot {
+  @apply relative inline-flex;
+}
+
+.pulse-dot::before {
+  content: "";
+  @apply absolute inset-0 rounded-full animate-ping opacity-75;
 }
