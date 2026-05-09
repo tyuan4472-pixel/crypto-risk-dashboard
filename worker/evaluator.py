@@ -26,8 +26,11 @@ class Evaluator:
         return [s["symbol"] for s in symbols_info]
 
     async def evaluate_single(self, symbol: str) -> dict:
+        """评估单个币种 — 使用完整数据管线 (CG+GoPlus+Kucoin细节+CryptoRank)"""
         try:
-            data = await self.fetcher.fetch_token_data(symbol)
+            # 用 fetch_batch 获取完整数据 (与全量扫描一致的数据丰富度)
+            results = await self.fetcher.fetch_batch([symbol])
+            data = results[0]
             result = self.engine.evaluate(data)
             return self._result_to_dict(result, data)
         except Exception as e:
