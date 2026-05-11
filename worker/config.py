@@ -11,16 +11,24 @@ from dotenv import load_dotenv
 env_path = os.path.join(os.path.dirname(__file__), '..', 'backend', '.env')
 load_dotenv(env_path, override=True)
 
-# 本地开发强制兜底：Docker 内网主机名 → localhost
-_redis = os.getenv("REDIS_URL", "")
-if not _redis or "redis:6379" in _redis or "postgres:" in _redis:
-    os.environ["REDIS_URL"] = "redis://localhost:6379/0"
-    print(f"[Worker] REDIS_URL fixed → redis://localhost:6379/0 (was: {_redis!r})")
+# 自动检测运行环境：Docker 内保留 Docker 主机名，非 Docker 则兜底 localhost
+_is_docker = os.path.exists('/.dockerenv')
 
-_db = os.getenv("DB_HOST", "")
-if not _db or _db in ("postgres", "redis"):
-    os.environ["DB_HOST"] = "localhost"
-    print(f"[Worker] DB_HOST fixed → localhost (was: {_db!r})")
+if not _is_docker:
+    _redis = os.getenv("REDIS_URL", "")
+    if not _redis or "redis:6379" in _redis:
+        os.environ["REDIS_URL"] = "redis://localhost:6379/0"
+
+    _db = os.getenv("DB_HOST", "")
+    if not _db or _db in ("postgres",):
+        os.environ["DB_HOST"] = "localhost"
+else:
+    # Docker 内：保持 .env 中的主机名 (redis/postgres)
+    # 确保 REDIS_URL 存在 — 如果 env_file 没配就兜底
+    if not os.getenv("REDIS_URL"):
+        os.environ["REDIS_URL"] = "redis://redis:6379/0"
+    if not os.getenv("DB_HOST"):
+        os.environ["DB_HOST"] = "postgres"
 
 
 class WorkerConfig:

@@ -43,13 +43,21 @@ class Settings(BaseSettings):
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
-# ── 本地开发兜底：Docker 主机名 → localhost ──
+# ── 环境自适应：Docker 内保留主机名，非 Docker 兜底 localhost ──
 import os as _os
-_redis = _os.getenv("REDIS_URL", "")
-if not _redis or "redis:6379" in _redis:
-    _os.environ["REDIS_URL"] = "redis://localhost:6379/0"
-_db = _os.getenv("DB_HOST", "")
-if not _db or _db in ("postgres", "redis"):
-    _os.environ["DB_HOST"] = "localhost"
+_is_docker = _os.path.exists('/.dockerenv')
+
+if not _is_docker:
+    _redis = _os.getenv("REDIS_URL", "")
+    if not _redis or "redis:6379" in _redis:
+        _os.environ["REDIS_URL"] = "redis://localhost:6379/0"
+    _db = _os.getenv("DB_HOST", "")
+    if not _db or _db in ("postgres",):
+        _os.environ["DB_HOST"] = "localhost"
+else:
+    if not _os.getenv("REDIS_URL"):
+        _os.environ["REDIS_URL"] = "redis://redis:6379/0"
+    if not _os.getenv("DB_HOST"):
+        _os.environ["DB_HOST"] = "postgres"
 
 settings = Settings()
