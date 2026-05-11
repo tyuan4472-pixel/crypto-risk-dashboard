@@ -6,6 +6,7 @@
 body {
   background-color: #0A0A0B;
   color: #F8FAFC;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
   @apply antialiased;
 }
 

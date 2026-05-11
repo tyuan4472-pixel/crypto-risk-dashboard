@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  subsets: ["latin"],
+// 系统字体栈（避免国内构建下载 Google Fonts 超时）
+const interFont = {
   variable: "--font-inter",
-  display: "swap",
-});
+};
 
 export const metadata: Metadata = {
   title: "Crypto Risk Dashboard",
@@ -15,9 +13,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN" className={inter.variable}>
+    <html lang="zh-CN" className={interFont.variable}>
       <body
-        className={`${inter.className} min-h-screen`}
+        className="min-h-screen"
         style={{ background: "#0A0A0B" }}
       >
         {/* Subtle top gradient glow */}
