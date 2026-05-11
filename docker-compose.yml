@@ -26,7 +26,7 @@ services:
     expose:
       - "3000"
     environment:
-      - NEXT_PUBLIC_API_URL=${API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_API_URL=${API_URL:-}
     restart: unless-stopped
 
   # ── FastAPI 后端 ──
