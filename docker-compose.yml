@@ -1,7 +1,7 @@
 services:
   # ── Nginx 反向代理 ──
   nginx:
-    image: nginx:alpine
+    image: registry.cn-hangzhou.aliyuncs.com/library/nginx:alpine
     container_name: risk-nginx
     ports:
       - "80:80"
@@ -86,7 +86,7 @@ services:
 
   # ── Redis (消息队列 + 缓存) ──
   redis:
-    image: redis:7-alpine
+    image: registry.cn-hangzhou.aliyuncs.com/library/redis:7-alpine
     container_name: risk-redis
     expose:
       - "6379"
@@ -96,7 +96,7 @@ services:
 
   # ── PostgreSQL ──
   postgres:
-    image: postgres:16-alpine
+    image: registry.cn-hangzhou.aliyuncs.com/library/postgres:16-alpine
     container_name: risk-postgres
     expose:
       - "5432"
