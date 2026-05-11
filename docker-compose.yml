@@ -20,8 +20,8 @@ services:
     build:
       context: ./frontend
       args:
-        HTTP_PROXY: ${HTTP_PROXY:-http://host.docker.internal:7078}
-        HTTPS_PROXY: ${HTTPS_PROXY:-http://host.docker.internal:7078}
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
     container_name: risk-frontend
     expose:
       - "3000"
@@ -34,8 +34,8 @@ services:
     build:
       context: ./backend
       args:
-        HTTP_PROXY: ${HTTP_PROXY:-http://host.docker.internal:7078}
-        HTTPS_PROXY: ${HTTPS_PROXY:-http://host.docker.internal:7078}
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
     container_name: risk-backend
     expose:
       - "8000"
@@ -54,8 +54,8 @@ services:
       context: .
       dockerfile: worker/Dockerfile
       args:
-        HTTP_PROXY: ${HTTP_PROXY:-http://host.docker.internal:7078}
-        HTTPS_PROXY: ${HTTPS_PROXY:-http://host.docker.internal:7078}
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
     env_file:
       - .env
     depends_on:
@@ -73,8 +73,8 @@ services:
       context: .
       dockerfile: worker/Dockerfile
       args:
-        HTTP_PROXY: ${HTTP_PROXY:-http://host.docker.internal:7078}
-        HTTPS_PROXY: ${HTTPS_PROXY:-http://host.docker.internal:7078}
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
     container_name: risk-beat
     command: celery -A tasks beat --loglevel=info
     env_file:
