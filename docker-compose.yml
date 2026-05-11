@@ -64,7 +64,11 @@ services:
       postgres:
         condition: service_started
     deploy:
-      replicas: 2
+      replicas: 1
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
     restart: unless-stopped
 
   # ── Celery Beat (定时调度) ──
@@ -92,6 +96,10 @@ services:
       - "6379"
     volumes:
       - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     restart: unless-stopped
 
   # ── PostgreSQL ──
