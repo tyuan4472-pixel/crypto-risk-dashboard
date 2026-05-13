@@ -79,21 +79,15 @@ async def get_latest_scores(
     result = await db.execute(query)
     tokens = result.scalars().all()
 
-    # 全量风险等级统计 (不计分页筛选)
-    risk_counts_query = (
-        select(TokenScore.risk_level, func.count().label("cnt"))
-        .select_from(
-            select(
-                TokenScore.symbol,
-                TokenScore.risk_level,
-                func.row_number()
-                .over(partition_by=TokenScore.symbol, order_by=desc(TokenScore.evaluated_at))
-                .label("rn")
-            ).subquery()
-        )
-        .where(text("rn = 1"))
-        .group_by(TokenScore.risk_level)
-    )
+    # 全量风险等级统计 (最新记录/symbol)
+    risk_counts_query = text("""
+        SELECT risk_level, COUNT(*) as cnt FROM (
+            SELECT DISTINCT ON (symbol) symbol, risk_level
+            FROM token_scores
+            ORDER BY symbol, evaluated_at DESC
+        ) latest
+        GROUP BY risk_level
+    """)
     rows = (await db.execute(risk_counts_query)).all()
     risk_counts = {row[0]: row[1] for row in rows}
 
