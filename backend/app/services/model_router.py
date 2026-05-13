@@ -95,15 +95,22 @@ class ModelRouter:
     # ── 主入口 ──
 
     async def call(self, task_type: TaskType, prompt: str, max_tokens: int = 2048) -> ModelResult:
+        """智能路由: 按优先级尝试, 失败自动降级"""
         # 优先级 1: DashScope (千问)
         if settings.dashscope_api_key:
-            model = self.DASHSCOPE_MODEL_MAP.get(task_type, "qwen-turbo")
-            return await self._call_dashscope(model, prompt, max_tokens)
+            try:
+                model = self.DASHSCOPE_MODEL_MAP.get(task_type, "qwen-turbo")
+                return await self._call_dashscope(model, prompt, max_tokens)
+            except Exception as e:
+                logger.warning(f"DashScope 失败, 降级到 Anthropic: {e}")
 
         # 优先级 2: Anthropic 原生 API
         if settings.anthropic_api_key:
-            model = self.TASK_MODEL_MAP.get(task_type, "claude-haiku-4-5")
-            return await self._call_anthropic(model, prompt, max_tokens)
+            try:
+                model = self.TASK_MODEL_MAP.get(task_type, "claude-haiku-4-5")
+                return await self._call_anthropic(model, prompt, max_tokens)
+            except Exception as e:
+                logger.warning(f"Anthropic 失败, 降级到 OpenRouter: {e}")
 
         # 优先级 3: OpenRouter
         if settings.openrouter_api_key:
