@@ -18,6 +18,8 @@ import httpx
 
 from app.config import settings
 
+logger = logging.getLogger(__name__)
+
 # ── 代理配置 (国内 Windows 环境连 KuCoin/CoinGecko/Anthropic) ──
 _proxy_url = None
 
