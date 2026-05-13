@@ -24,16 +24,16 @@ logger = logging.getLogger(__name__)
 # ── 代理配置 ──
 _proxy_url = None
 
-def _get_proxy() -> Optional[str]:
+def _get_proxy():
+    proxy = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY") or os.getenv("ALL_PROXY")
+    if proxy:
+        return proxy
     try:
-        from app.config import settings
         if settings.https_proxy:
             return settings.https_proxy
-        if settings.http_proxy:
-            return settings.http_proxy
     except Exception:
         pass
-    return os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY") or os.getenv("ALL_PROXY")
+    return None
 
 
 def _make_client(timeout: int = 120) -> httpx.AsyncClient:

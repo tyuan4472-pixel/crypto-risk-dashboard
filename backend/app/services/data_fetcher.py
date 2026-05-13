@@ -23,19 +23,18 @@ logger = logging.getLogger(__name__)
 # ── 代理配置 (国内 Windows 环境连 KuCoin/CoinGecko/Anthropic) ──
 _proxy_url = None
 
-def _get_proxy() -> Optional[str]:
-    """延迟获取代理 URL: settings > os.getenv > None"""
-    # 先试 pydantic settings (.env 文件)
+def _get_proxy():
+    """获取代理 URL: os.environ 优先 (Worker 已加载 .env)"""
+    proxy = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY") or os.getenv("ALL_PROXY")
+    if proxy:
+        return proxy
+    # 兜底：pydantic settings
     try:
-        from app.config import settings
         if settings.https_proxy:
             return settings.https_proxy
-        if settings.http_proxy:
-            return settings.http_proxy
     except Exception:
         pass
-    # 再试系统环境变量
-    return os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY") or os.getenv("ALL_PROXY")
+    return None
 
 
 def _make_client(timeout: int = 30) -> httpx.AsyncClient:
