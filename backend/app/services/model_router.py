@@ -14,6 +14,7 @@ from dataclasses import dataclass
 import time
 import logging
 import os
+from typing import Optional
 import httpx
 
 from app.config import settings
@@ -21,19 +22,32 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 # ── 代理配置 ──
-_proxy_url = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY") or os.getenv("ALL_PROXY")
-_proxy_mounts = None
-if _proxy_url:
-    _proxy_mounts = {
-        "http://": httpx.AsyncHTTPTransport(proxy=_proxy_url),
-        "https://": httpx.AsyncHTTPTransport(proxy=_proxy_url),
-    }
-    logger.info(f"ModelRouter 使用代理: {_proxy_url}")
+_proxy_url = None
+
+def _get_proxy() -> Optional[str]:
+    try:
+        from app.config import settings
+        if settings.https_proxy:
+            return settings.https_proxy
+        if settings.http_proxy:
+            return settings.http_proxy
+    except Exception:
+        pass
+    return os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY") or os.getenv("ALL_PROXY")
 
 
 def _make_client(timeout: int = 120) -> httpx.AsyncClient:
-    if _proxy_mounts:
-        return httpx.AsyncClient(timeout=timeout, mounts=_proxy_mounts)
+    global _proxy_url
+    if _proxy_url is None:
+        _proxy_url = _get_proxy()
+        if _proxy_url:
+            logger.info(f"ModelRouter 使用代理: {_proxy_url}")
+    if _proxy_url:
+        mounts = {
+            "http://": httpx.AsyncHTTPTransport(proxy=_proxy_url),
+            "https://": httpx.AsyncHTTPTransport(proxy=_proxy_url),
+        }
+        return httpx.AsyncClient(timeout=timeout, mounts=mounts)
     return httpx.AsyncClient(timeout=timeout)
 
 

@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     dashscope_api_key: str = ""
 
+    # 代理
+    http_proxy: str = ""
+    https_proxy: str = ""
+
     # 应用
     environment: str = "development"
     log_level: str = "info"

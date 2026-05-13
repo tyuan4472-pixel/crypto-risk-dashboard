@@ -18,23 +18,37 @@ import httpx
 
 from app.config import settings
 
-logger = logging.getLogger(__name__)
-
 # ── 代理配置 (国内 Windows 环境连 KuCoin/CoinGecko/Anthropic) ──
-_proxy_url = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY") or os.getenv("ALL_PROXY")
-_proxy_mounts = None
-if _proxy_url:
-    _proxy_mounts = {
-        "http://": httpx.AsyncHTTPTransport(proxy=_proxy_url),
-        "https://": httpx.AsyncHTTPTransport(proxy=_proxy_url),
-    }
-    logger.info(f"使用代理: {_proxy_url}")
+_proxy_url = None
+
+def _get_proxy() -> Optional[str]:
+    """延迟获取代理 URL: settings > os.getenv > None"""
+    # 先试 pydantic settings (.env 文件)
+    try:
+        from app.config import settings
+        if settings.https_proxy:
+            return settings.https_proxy
+        if settings.http_proxy:
+            return settings.http_proxy
+    except Exception:
+        pass
+    # 再试系统环境变量
+    return os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY") or os.getenv("ALL_PROXY")
 
 
 def _make_client(timeout: int = 30) -> httpx.AsyncClient:
     """创建 httpx 客户端，自动使用代理(如果已配置)。"""
-    if _proxy_mounts:
-        return httpx.AsyncClient(timeout=timeout, mounts=_proxy_mounts)
+    global _proxy_url
+    if _proxy_url is None:
+        _proxy_url = _get_proxy()
+        if _proxy_url:
+            logger.info(f"使用代理: {_proxy_url}")
+    if _proxy_url:
+        mounts = {
+            "http://": httpx.AsyncHTTPTransport(proxy=_proxy_url),
+            "https://": httpx.AsyncHTTPTransport(proxy=_proxy_url),
+        }
+        return httpx.AsyncClient(timeout=timeout, mounts=mounts)
     return httpx.AsyncClient(timeout=timeout)
 
 # 主流 CEX 标识符列表 (13 家)
