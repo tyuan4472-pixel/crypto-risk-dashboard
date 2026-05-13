@@ -38,6 +38,8 @@ export default function Dashboard() {
   const [scheduler, setScheduler] = useState<SchedulerStatus | null>(null);
   const [scanning, setScanning] = useState(false);
 
+  const [riskCounts, setRiskCounts] = useState<Record<string, number>>({});
+
   const loadTokens = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -52,6 +54,7 @@ export default function Dashboard() {
       });
       setTokens(data.tokens);
       setTotal(data.total);
+      setRiskCounts(data.risk_counts || {});
     } catch (err: any) {
       setError(err.message || "无法连接后端 API");
       setTokens([]);
@@ -84,13 +87,9 @@ export default function Dashboard() {
     }
   }
 
-  const highRiskCount = tokens.filter(
-    (t) => t.risk_level === "高" || t.risk_level === "极高"
-  ).length;
-  const mediumRiskCount = tokens.filter((t) => t.risk_level === "中").length;
-  const lowRiskCount = tokens.filter(
-    (t) => t.risk_level === "低" || t.risk_level === "极低"
-  ).length;
+  const highRiskCount = (riskCounts["高"] || 0) + (riskCounts["极高"] || 0);
+  const mediumRiskCount = riskCounts["中"] || 0;
+  const lowRiskCount = (riskCounts["低"] || 0) + (riskCounts["极低"] || 0);
 
   const totalPages = Math.ceil(total / pageSize);
 

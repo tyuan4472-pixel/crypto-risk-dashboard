@@ -143,6 +143,7 @@ class TokenListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+    risk_counts: dict[str, int] = {}
 
 
 class TokenDetailResponse(TokenScoreResponse):

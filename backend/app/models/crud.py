@@ -3,7 +3,7 @@
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from sqlalchemy import select, func, desc, asc, and_, or_
+from sqlalchemy import select, func, desc, asc, and_, or_, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.orm import TokenScore, TokenReport, ScanLog
@@ -21,7 +21,7 @@ async def get_latest_scores(
     page: int = 1,
     page_size: int = 50,
     search: Optional[str] = None,
-) -> tuple[list[TokenScore], int]:
+) -> tuple[list[TokenScore], int, dict[str, int]]:
     """
     获取每个币种的最新评分 (去重: 同一 symbol 只取最新一条)
     支持: 风险等级筛选、排序、分页、搜索
@@ -79,7 +79,25 @@ async def get_latest_scores(
     result = await db.execute(query)
     tokens = result.scalars().all()
 
-    return list(tokens), total
+    # 全量风险等级统计 (不计分页筛选)
+    risk_counts_query = (
+        select(TokenScore.risk_level, func.count().label("cnt"))
+        .select_from(
+            select(
+                TokenScore.symbol,
+                TokenScore.risk_level,
+                func.row_number()
+                .over(partition_by=TokenScore.symbol, order_by=desc(TokenScore.evaluated_at))
+                .label("rn")
+            ).subquery()
+        )
+        .where(text("rn = 1"))
+        .group_by(TokenScore.risk_level)
+    )
+    rows = (await db.execute(risk_counts_query)).all()
+    risk_counts = {row[0]: row[1] for row in rows}
+
+    return list(tokens), total, risk_counts
 
 
 async def get_token_detail(db: AsyncSession, symbol: str) -> Optional[TokenScore]:

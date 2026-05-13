@@ -26,7 +26,7 @@ async def list_tokens(
     search: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    tokens, total = await crud.get_latest_scores(
+    tokens, total, risk_counts = await crud.get_latest_scores(
         db, risk_level=risk_level, sort_by=sort_by, order=order,
         page=page, page_size=page_size, search=search,
     )
@@ -42,6 +42,7 @@ async def list_tokens(
             ) for t in tokens
         ],
         total=total, page=page, page_size=page_size,
+        risk_counts=risk_counts,
     )
 
 

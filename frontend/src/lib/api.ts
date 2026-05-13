@@ -165,6 +165,7 @@ export interface TokenListResponse {
   total: number;
   page: number;
   page_size: number;
+  risk_counts?: Record<string, number>;
 }
 
 export interface SchedulerStatus {
