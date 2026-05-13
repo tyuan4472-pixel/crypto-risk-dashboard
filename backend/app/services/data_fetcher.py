@@ -10,6 +10,7 @@
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -18,6 +19,23 @@ import httpx
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# ── 代理配置 (国内 Windows 环境连 KuCoin/CoinGecko/Anthropic) ──
+_proxy_url = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY") or os.getenv("ALL_PROXY")
+_proxy_mounts = None
+if _proxy_url:
+    _proxy_mounts = {
+        "http://": httpx.AsyncHTTPTransport(proxy=_proxy_url),
+        "https://": httpx.AsyncHTTPTransport(proxy=_proxy_url),
+    }
+    logger.info(f"使用代理: {_proxy_url}")
+
+
+def _make_client(timeout: int = 30) -> httpx.AsyncClient:
+    """创建 httpx 客户端，自动使用代理(如果已配置)。"""
+    if _proxy_mounts:
+        return httpx.AsyncClient(timeout=timeout, mounts=_proxy_mounts)
+    return httpx.AsyncClient(timeout=timeout)
 
 # 主流 CEX 标识符列表 (13 家)
 MAJOR_CEX_IDS = {
@@ -128,7 +146,7 @@ class KuCoinAdapter:
 
     async def fetch_spot_symbols(self) -> list[dict]:
         """拉取 KuCoin 所有 USDT 现货交易对，返回 [{"symbol": "BTC", "name": "Bitcoin"}, ...]"""
-        async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
+        async with _make_client(timeout=self.TIMEOUT) as client:
             resp = await client.get(f"{self.BASE_URL}/api/v2/symbols")
             resp.raise_for_status()
             data = resp.json()
@@ -145,7 +163,7 @@ class KuCoinAdapter:
 
     async def fetch_tickers(self) -> dict[str, dict]:
         """获取所有 USDT 交易对行情"""
-        async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
+        async with _make_client(timeout=self.TIMEOUT) as client:
             resp = await client.get(f"{self.BASE_URL}/api/v1/market/allTickers")
             resp.raise_for_status()
             data = resp.json()
@@ -164,7 +182,7 @@ class KuCoinAdapter:
 
     async def fetch_symbol_detail(self, symbol: str) -> dict:
         """获取单个交易对详情 (含充提状态)"""
-        async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
+        async with _make_client(timeout=self.TIMEOUT) as client:
             resp = await client.get(f"{self.BASE_URL}/api/v1/currencies/{symbol.lower()}")
             resp.raise_for_status()
             data = resp.json()
@@ -182,7 +200,7 @@ class KuCoinAdapter:
     async def fetch_market_detail(self, symbol: str) -> dict:
         """获取订单簿 level1 数据 — bid/ask 深度与价差"""
         try:
-            async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
+            async with _make_client(timeout=self.TIMEOUT) as client:
                 resp = await client.get(
                     f"{self.BASE_URL}/api/v1/market/orderbook/level1",
                     params={"symbol": f"{symbol.upper()}-USDT"},
@@ -226,7 +244,7 @@ class CMCAdapter:
         for i in range(0, len(symbols), batch_size):
             batch = symbols[i:i + batch_size]
             try:
-                async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
+                async with _make_client(timeout=self.TIMEOUT) as client:
                     resp = await client.get(
                         f"{self.BASE_URL}/v2/cryptocurrency/quotes/latest",
                         headers={"X-CMC_PRO_API_KEY": settings.cmc_api_key},
@@ -285,7 +303,7 @@ class CoinGeckoAdapter:
             return self._symbol_to_id
 
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with _make_client(timeout=30) as client:
                 resp = await client.get(f"{self.BASE_URL}/coins/list", headers=self._headers())
                 resp.raise_for_status()
                 coins = resp.json()
@@ -316,7 +334,7 @@ class CoinGeckoAdapter:
         for i in range(0, len(cg_ids), batch_size):
             batch = cg_ids[i:i + batch_size]
             try:
-                async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
+                async with _make_client(timeout=self.TIMEOUT) as client:
                     resp = await client.get(
                         f"{self.BASE_URL}/coins/markets",
                         headers=self._headers(),
@@ -362,7 +380,7 @@ class CoinGeckoAdapter:
     async def fetch_coin_detail(self, cg_id: str) -> Optional[dict]:
         """获取单个币种详情 (开发者数据 + 社区数据 + 合约地址)"""
         try:
-            async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
+            async with _make_client(timeout=self.TIMEOUT) as client:
                 resp = await client.get(
                     f"{self.BASE_URL}/coins/{cg_id}",
                     headers=self._headers(),
@@ -405,7 +423,7 @@ class CoinGeckoAdapter:
     async def fetch_exchange_distribution(self, cg_id: str) -> Optional[dict]:
         """获取交易所分布数据 — 解析 tickers 计算 CEX 数量 + 主流交易所 + KuCoin 占比"""
         try:
-            async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
+            async with _make_client(timeout=self.TIMEOUT) as client:
                 resp = await client.get(
                     f"{self.BASE_URL}/coins/{cg_id}/tickers",
                     headers=self._headers(),
@@ -496,7 +514,7 @@ class GoPlusAdapter:
             if settings.goplus_api_key:
                 params["authorization"] = settings.goplus_api_key
 
-            async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
+            async with _make_client(timeout=self.TIMEOUT) as client:
                 resp = await client.get(
                     f"{self.BASE_URL}/token_security/{chain_id}",
                     params=params,
@@ -557,7 +575,7 @@ class CryptoRankAdapter:
         if not self.is_configured():
             return None
         try:
-            async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
+            async with _make_client(timeout=self.TIMEOUT) as client:
                 resp = await client.get(
                     f"{self.BASE_URL}/coins/{coin_key.lower()}",
                     params={"api_key": settings.cryptorank_api_key},

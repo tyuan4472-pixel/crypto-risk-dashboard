@@ -13,11 +13,28 @@ from enum import Enum
 from dataclasses import dataclass
 import time
 import logging
+import os
 import httpx
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# ── 代理配置 ──
+_proxy_url = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY") or os.getenv("ALL_PROXY")
+_proxy_mounts = None
+if _proxy_url:
+    _proxy_mounts = {
+        "http://": httpx.AsyncHTTPTransport(proxy=_proxy_url),
+        "https://": httpx.AsyncHTTPTransport(proxy=_proxy_url),
+    }
+    logger.info(f"ModelRouter 使用代理: {_proxy_url}")
+
+
+def _make_client(timeout: int = 120) -> httpx.AsyncClient:
+    if _proxy_mounts:
+        return httpx.AsyncClient(timeout=timeout, mounts=_proxy_mounts)
+    return httpx.AsyncClient(timeout=timeout)
 
 
 class TaskType(str, Enum):
@@ -104,7 +121,7 @@ class ModelRouter:
         # 先试国际站，再试国内站
         for base in (self.DASHSCOPE_BASE, self.DASHSCOPE_BASE_INTL):
             try:
-                async with httpx.AsyncClient(timeout=180) as client:
+                async with _make_client(timeout=180) as client:
                     resp = await client.post(
                         f"{base}/compatible-mode/v1/chat/completions",
                         headers=headers, json=body,
@@ -139,7 +156,7 @@ class ModelRouter:
             "messages": [{"role": "user", "content": prompt}],
         }
         t0 = time.time()
-        async with httpx.AsyncClient(timeout=120) as client:
+        async with _make_client(timeout=120) as client:
             resp = await client.post(
                 f"{self.ANTHROPIC_BASE}/messages",
                 headers=headers, json=body,
@@ -167,7 +184,7 @@ class ModelRouter:
             "max_tokens": max_tokens,
         }
         t0 = time.time()
-        async with httpx.AsyncClient(timeout=120) as client:
+        async with _make_client(timeout=120) as client:
             resp = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers=headers, json=body,
