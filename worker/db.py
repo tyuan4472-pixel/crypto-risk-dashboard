@@ -108,11 +108,16 @@ def update_scan_log(batch_id: str, completed: int, failed: int, status: str) -> 
 
 
 def save_report(symbol: str, report_type: str, title: str, content: str, trigger_source: str = "scheduled") -> None:
-    """保存调研报告"""
+    """保存或更新调研报告 (UPSERT)"""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO token_reports (symbol, report_type, title, content, trigger_source)
-                   VALUES (%s, %s, %s, %s, %s)""",
+                   VALUES (%s, %s, %s, %s, %s)
+                   ON CONFLICT (symbol, report_type) DO UPDATE SET
+                     title = EXCLUDED.title,
+                     content = EXCLUDED.content,
+                     trigger_source = EXCLUDED.trigger_source,
+                     generated_at = NOW()""",
                 (symbol, report_type, title, content, trigger_source),
             )
