@@ -140,9 +140,46 @@ export default function TokenDetailPage() {
       setReport(data.content);
       setShowReport(true);
     } catch {
-      setReport("报告尚未生成");
+      setReport("报告尚未生成，请先触发评估");
       setShowReport(true);
     }
+  }
+
+  // Auto-fetch report on load
+  useEffect(() => {
+    if (token) {
+      fetchTokenReport(symbol).then(r => setReport(r.content)).catch(() => {});
+    }
+  }, [token, symbol]);
+
+  // Format report for display (escape HTML, preserve sections)
+  function formatReport(text: string | null): React.ReactNode {
+    if (!text) return null;
+    const lines = text.split('\n');
+    return lines.map((line, i) => {
+      const trimmed = line.trim();
+      if (!trimmed) return <br key={i} />;
+      // Section headers like "1. 项目基本面与背景" or "💡 综合结论"
+      if (/^[1-6]\. /.test(trimmed) || trimmed.startsWith('💡') || trimmed.startsWith('🚨') || trimmed.startsWith('🧟')) {
+        return <div key={i} className="text-base font-bold text-amber-300 mt-5 mb-3">{trimmed}</div>;
+      }
+      if (trimmed.startsWith('P0') || trimmed.startsWith('P1') || trimmed.startsWith('P2') || trimmed.startsWith('P3')) {
+        const isCritical = trimmed.startsWith('P0');
+        return (
+          <div key={i} className={`flex items-start gap-2 mt-2 py-1.5 px-3 rounded-lg ${isCritical ? 'bg-rose-500/10 border border-rose-500/20' : 'bg-white/[0.02]'}`}>
+            <span className={`flex-shrink-0 text-xs font-bold px-1.5 py-0.5 rounded ${isCritical ? 'bg-rose-500/20 text-rose-400' : trimmed.startsWith('P1') ? 'bg-orange-500/15 text-orange-400' : 'bg-amber-500/10 text-amber-400'}`}>
+              {trimmed.match(/^P\d/)![0]}
+            </span>
+            <span className="text-sm text-slate-300">{trimmed.replace(/^P\d:\s*/, '')}</span>
+          </div>
+        );
+      }
+      if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+        const content = trimmed.slice(2, -2);
+        return <div key={i} className="text-sm font-semibold text-sky-300 mt-3 mb-1">{content}</div>;
+      }
+      return <div key={i} className="text-sm text-slate-400 leading-relaxed">{trimmed}</div>;
+    });
   }
 
   /* ── Loading state ── */
@@ -854,6 +891,15 @@ export default function TokenDetailPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </Section>
+      )}
+
+      {/* ── Deep Report (inline) ── */}
+      {report && (
+        <Section title="深度风控报告 (Claude)" icon={<FileText className="w-3.5 h-3.5" />} accentColor="border-violet-500">
+          <div className="max-h-[800px] overflow-y-auto pr-2 report-content">
+            {formatReport(report)}
           </div>
         </Section>
       )}
