@@ -71,6 +71,19 @@ class SentimentData(BaseModel):
     risks_found: list[str] = []
 
 
+class LLMRecommendation(BaseModel):
+    priority: str = ""
+    action: str = ""
+    reason: str = ""
+
+
+class LLMAnalysis(BaseModel):
+    summary: Optional[str] = None
+    key_risks: list[str] = []
+    safe_factors: list[str] = []
+    recommendations: list[LLMRecommendation] = []
+
+
 class ExtraData(BaseModel):
     market_cap_rank: Optional[int] = None
     holder_count: Optional[int] = None
@@ -101,6 +114,8 @@ class ExtraData(BaseModel):
     kucoin_spread_pct: Optional[float] = None
     # Sentiment analysis
     sentiment: Optional[SentimentData] = None
+    # LLM analysis
+    llm_analysis: Optional[LLMAnalysis] = None
 
 
 # ── API 响应模型 ──

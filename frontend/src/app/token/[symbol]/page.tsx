@@ -19,6 +19,9 @@ import {
   DollarSign,
   TrendingDown,
   Zap,
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import RiskRadarChart from "@/components/RiskRadarChart";
 import ScoreHistory from "@/components/ScoreHistory";
@@ -763,6 +766,95 @@ export default function TokenDetailPage() {
       {token.history_30d && token.history_30d.length > 1 && (
         <Section title="30 天评分趋势" icon={<TrendingDown className="w-3.5 h-3.5" />} accentColor="border-blue-500">
           <ScoreHistory data={token.history_30d} />
+        </Section>
+      )}
+
+      {/* ── LLM Analysis: Key Risks + Safe Factors ── */}
+      {extra.llm_analysis && (extra.llm_analysis.key_risks?.length || extra.llm_analysis.safe_factors?.length) > 0 && (
+        <Section title="AI 深度分析" icon={<Zap className="w-3.5 h-3.5" />} accentColor="border-purple-500">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {extra.llm_analysis.key_risks && extra.llm_analysis.key_risks.length > 0 && (
+              <div className="bg-rose-500/[0.06] border border-rose-500/20 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertTriangle className="w-4 h-4 text-rose-400" />
+                  <span className="text-sm font-semibold text-rose-300">核心风险因子</span>
+                </div>
+                <ul className="space-y-1.5">
+                  {extra.llm_analysis.key_risks.map((risk, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-rose-300">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 flex-shrink-0" />
+                      {risk}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {extra.llm_analysis.safe_factors && extra.llm_analysis.safe_factors.length > 0 && (
+              <div className="bg-emerald-500/[0.06] border border-emerald-500/20 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <CheckCircle className="w-4 h-4 text-emerald-400" />
+                  <span className="text-sm font-semibold text-emerald-300">已排除的担忧</span>
+                </div>
+                <ul className="space-y-1.5">
+                  {extra.llm_analysis.safe_factors.map((factor, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-emerald-300">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0" />
+                      {factor}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          {extra.llm_analysis.summary && (
+            <div className="mt-4 p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
+              <p className="text-sm text-slate-300">{extra.llm_analysis.summary}</p>
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* ── P0-P3 Recommendations ── */}
+      {extra.llm_analysis?.recommendations && extra.llm_analysis.recommendations.length > 0 && (
+        <Section title="处置建议" icon={<Shield className="w-3.5 h-3.5" />} accentColor="border-amber-500">
+          <div className="space-y-2.5">
+            {extra.llm_analysis.recommendations.map((rec, i) => (
+              <div
+                key={i}
+                className={`rounded-xl border p-4 transition-all duration-200 ${
+                  rec.priority === "P0"
+                    ? "bg-rose-500/[0.08] border-rose-500/30"
+                    : rec.priority === "P1"
+                    ? "bg-orange-500/[0.06] border-orange-500/25"
+                    : rec.priority === "P2"
+                    ? "bg-amber-500/[0.04] border-amber-500/20"
+                    : "bg-white/[0.02] border-white/[0.05]"
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <span
+                    className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-lg border ${
+                      rec.priority === "P0"
+                        ? "bg-rose-500/20 border-rose-500/40 text-rose-400"
+                        : rec.priority === "P1"
+                        ? "bg-orange-500/15 border-orange-500/35 text-orange-400"
+                        : rec.priority === "P2"
+                        ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                        : "bg-slate-500/10 border-slate-500/30 text-slate-400"
+                    }`}
+                  >
+                    {rec.priority}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-200 mb-1">{rec.action}</p>
+                    {rec.reason && (
+                      <p className="text-xs text-slate-500">{rec.reason}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </Section>
       )}
 

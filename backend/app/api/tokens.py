@@ -9,6 +9,7 @@ from app.models.schemas import (
     TokenListResponse, TokenScoreBrief, TokenDetailResponse,
     DimensionScores, CheckIndicators, RiskDetail, TriggerResponse,
     RiskLevel, ZombieDetection, ExtraData, SentimentData,
+    LLMAnalysis, LLMRecommendation,
 )
 from app.models import crud
 
@@ -64,6 +65,18 @@ def _parse_extra(rd: dict) -> ExtraData:
             risks_found=sentiment_raw.get("risks_found", []),
         )
 
+    # LLM 分析数据
+    llm_raw = rd.get("llm_analysis") if isinstance(rd, dict) else None
+    llm_analysis = None
+    if llm_raw:
+        recs = llm_raw.get("recommendations") or []
+        llm_analysis = LLMAnalysis(
+            summary=llm_raw.get("summary"),
+            key_risks=llm_raw.get("key_risks", []),
+            safe_factors=llm_raw.get("safe_factors", []),
+            recommendations=[LLMRecommendation(**r) for r in recs if isinstance(r, dict)],
+        )
+
     return ExtraData(
         # 原有字段
         market_cap_rank=extra.get("market_cap_rank"),
@@ -95,6 +108,8 @@ def _parse_extra(rd: dict) -> ExtraData:
         kucoin_spread_pct=kc_mkt.get("spread_pct"),
         # 情绪分析
         sentiment=sentiment,
+        # LLM 分析
+        llm_analysis=llm_analysis,
     )
 
 

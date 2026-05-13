@@ -114,6 +114,8 @@ export interface ExtraData {
   kucoin_spread_pct?: number | null;
   // Sentiment
   sentiment?: SentimentData | null;
+  // LLM Analysis
+  llm_analysis?: LLMAnalysis | null;
 }
 
 export interface RiskDetail {
@@ -122,6 +124,19 @@ export interface RiskDetail {
   description: string;
   source: string;
   detected_at?: string;
+}
+
+export interface LLMRecommendation {
+  priority: string;
+  action: string;
+  reason: string;
+}
+
+export interface LLMAnalysis {
+  summary?: string;
+  key_risks?: string[];
+  safe_factors?: string[];
+  recommendations?: LLMRecommendation[];
 }
 
 export interface TokenScore {

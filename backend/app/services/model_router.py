@@ -2,10 +2,11 @@
 
 当前可用:
   Claude (Anthropic 原生 API) — 舆情分析 / 深度报告 / 风险判断
-  (DashScope 千问账户欠费, 待充值后启用)
+  DashScope (阿里云百炼) — 千问 LLM, 国内用户首选
+  OpenRouter — 国际兜底
 
 策略:
-  所有任务 → Claude (Anthropic 原生)
+  DashScope → Claude (Anthropic) → OpenRouter
 """
 
 from enum import Enum
@@ -35,36 +36,98 @@ class ModelResult:
 
 
 class ModelRouter:
-    """自动模型路由"""
+    """自动模型路由 — 优先级: DashScope > Anthropic > OpenRouter"""
 
     ANTHROPIC_BASE = "https://api.anthropic.com/v1"
+    DASHSCOPE_BASE = "https://dashscope.aliyuncs.com"  # 国内站
+    DASHSCOPE_BASE_INTL = "https://dashscope-intl.aliyuncs.com"  # 国际站
 
-    # 根据任务复杂度选模型大小
+    # Anthropic 任务 → 模型映射
     TASK_MODEL_MAP = {
-        TaskType.DATA_CLEANING: "claude-haiku-4-5",       # 轻量任务
-        TaskType.SENTIMENT_ANALYSIS: "claude-haiku-4-5",  # 批量舆情分析 → 快速便宜
-        TaskType.DEEP_REPORT: "claude-sonnet-4-6",        # 深度报告 → 高质量
-        TaskType.QUICK_CHECK: "claude-haiku-4-5",         # 快速判断
+        TaskType.DATA_CLEANING: "claude-haiku-4-5",
+        TaskType.SENTIMENT_ANALYSIS: "claude-haiku-4-5",
+        TaskType.DEEP_REPORT: "claude-sonnet-4-6",
+        TaskType.QUICK_CHECK: "claude-haiku-4-5",
+    }
+
+    # DashScope 任务 → 模型映射
+    DASHSCOPE_MODEL_MAP = {
+        TaskType.DATA_CLEANING: "qwen-turbo",
+        TaskType.SENTIMENT_ANALYSIS: "qwen-turbo",
+        TaskType.DEEP_REPORT: "qwen-max",
+        TaskType.QUICK_CHECK: "qwen-turbo",
     }
 
     def is_configured(self) -> bool:
-        return bool(settings.anthropic_api_key or settings.openrouter_api_key)
+        return bool(settings.dashscope_api_key or settings.anthropic_api_key or settings.openrouter_api_key)
+
+    # ── 主入口 ──
 
     async def call(self, task_type: TaskType, prompt: str, max_tokens: int = 2048) -> ModelResult:
-        model = self.TASK_MODEL_MAP.get(task_type, "claude-haiku-4-5")
+        # 优先级 1: DashScope (千问)
+        if settings.dashscope_api_key:
+            model = self.DASHSCOPE_MODEL_MAP.get(task_type, "qwen-turbo")
+            return await self._call_dashscope(model, prompt, max_tokens)
 
-        # 优先 Anthropic 原生 API
+        # 优先级 2: Anthropic 原生 API
         if settings.anthropic_api_key:
+            model = self.TASK_MODEL_MAP.get(task_type, "claude-haiku-4-5")
             return await self._call_anthropic(model, prompt, max_tokens)
 
-        # 兜底 OpenRouter
+        # 优先级 3: OpenRouter
         if settings.openrouter_api_key:
+            model = self.TASK_MODEL_MAP.get(task_type, "claude-haiku-4-5")
             return await self._call_openrouter(model, prompt, max_tokens)
 
-        raise RuntimeError("未配置 AI 模型 Key (ANTHROPIC_API_KEY 或 OPENROUTER_API_KEY)")
+        raise RuntimeError("未配置 AI 模型 Key (DASHSCOPE_API_KEY / ANTHROPIC_API_KEY / OPENROUTER_API_KEY)")
+
+    # ── DashScope (阿里云百炼) ──
+
+    async def _call_dashscope(self, model: str, prompt: str, max_tokens: int) -> ModelResult:
+        """阿里云 DashScope API (千问)"""
+        headers = {
+            "Authorization": f"Bearer {settings.dashscope_api_key}",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "model": model,
+            "input": {
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            "parameters": {
+                "max_tokens": max_tokens,
+                "temperature": 0.3,
+            },
+        }
+        t0 = time.time()
+
+        # 先试国际站，再试国内站
+        for base in (self.DASHSCOPE_BASE, self.DASHSCOPE_BASE_INTL):
+            try:
+                async with httpx.AsyncClient(timeout=180) as client:
+                    resp = await client.post(
+                        f"{base}/compatible-mode/v1/chat/completions",
+                        headers=headers, json=body,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    latency = int((time.time() - t0) * 1000)
+                    usage = data.get("usage", {})
+                    return ModelResult(
+                        model_used=f"dashscope/{model}",
+                        content=data["choices"][0]["message"]["content"],
+                        tokens_used=usage.get("total_tokens", 0),
+                        latency_ms=latency,
+                    )
+            except httpx.HTTPError as e:
+                logger.warning(f"DashScope ({base}) error: {e}")
+                continue
+
+        raise RuntimeError(f"DashScope 调用失败: 国内外站均不可达")
+
+    # ── Anthropic 原生 ──
 
     async def _call_anthropic(self, model: str, prompt: str, max_tokens: int) -> ModelResult:
-        """Anthropic 原生 API 调用"""
         headers = {
             "x-api-key": settings.anthropic_api_key,
             "anthropic-version": "2023-06-01",
@@ -91,8 +154,9 @@ class ModelRouter:
                 latency_ms=latency,
             )
 
+    # ── OpenRouter 兜底 ──
+
     async def _call_openrouter(self, model: str, prompt: str, max_tokens: int) -> ModelResult:
-        """OpenRouter API 调用 (兜底)"""
         headers = {
             "Authorization": f"Bearer {settings.openrouter_api_key}",
             "Content-Type": "application/json",
@@ -118,8 +182,9 @@ class ModelRouter:
                 latency_ms=latency,
             )
 
+    # ── 快捷方法 ──
+
     async def sentiment_analysis(self, token_symbol: str, context: str) -> str:
-        """舆情分析 — 基于可用数据评估情绪"""
         prompt = f"""你是一个加密货币风险分析师。以下是关于加密货币 {token_symbol} 的市场数据:
 
 {context[:6000]}
@@ -137,7 +202,6 @@ class ModelRouter:
         return result.content
 
     async def sentiment_batch(self, tokens_text: str) -> str:
-        """批量情绪分析 — 多币种社区数据 + 价格变化 + 成交量"""
         prompt = f"""你是一个加密货币风险分析师。以下是多个代币的社区和市场数据:
 
 {tokens_text[:8000]}
@@ -157,7 +221,6 @@ class ModelRouter:
         return result.content
 
     async def generate_risk_report(self, symbol: str, token_data: dict) -> str:
-        """生成深度风险报告"""
         prompt = f"""你是一个加密货币风控专家。请为以下币种生成结构化风险评估报告。
 
 币种: {symbol}
